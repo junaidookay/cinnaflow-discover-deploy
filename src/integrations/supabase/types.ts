@@ -14,16 +14,241 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      artist_promotions: {
+        Row: {
+          approval_status: Database["public"]["Enums"]["approval_status"] | null
+          artist_name: string
+          created_at: string
+          end_date: string | null
+          external_links: Json | null
+          id: string
+          is_sponsored: boolean | null
+          placement_locations: string[] | null
+          start_date: string | null
+          submitter_email: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          video_embed_url: string | null
+        }
+        Insert: {
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          artist_name: string
+          created_at?: string
+          end_date?: string | null
+          external_links?: Json | null
+          id?: string
+          is_sponsored?: boolean | null
+          placement_locations?: string[] | null
+          start_date?: string | null
+          submitter_email?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          video_embed_url?: string | null
+        }
+        Update: {
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          artist_name?: string
+          created_at?: string
+          end_date?: string | null
+          external_links?: Json | null
+          id?: string
+          is_sponsored?: boolean | null
+          placement_locations?: string[] | null
+          start_date?: string | null
+          submitter_email?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          video_embed_url?: string | null
+        }
+        Relationships: []
+      }
+      content_items: {
+        Row: {
+          badges: Database["public"]["Enums"]["badge_type"][] | null
+          content_type: Database["public"]["Enums"]["content_type"]
+          created_at: string
+          description: string | null
+          external_watch_links: Json | null
+          hero_order: number | null
+          id: string
+          is_published: boolean | null
+          poster_url: string | null
+          section_assignments:
+            | Database["public"]["Enums"]["section_type"][]
+            | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          video_embed_url: string | null
+        }
+        Insert: {
+          badges?: Database["public"]["Enums"]["badge_type"][] | null
+          content_type: Database["public"]["Enums"]["content_type"]
+          created_at?: string
+          description?: string | null
+          external_watch_links?: Json | null
+          hero_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          poster_url?: string | null
+          section_assignments?:
+            | Database["public"]["Enums"]["section_type"][]
+            | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          video_embed_url?: string | null
+        }
+        Update: {
+          badges?: Database["public"]["Enums"]["badge_type"][] | null
+          content_type?: Database["public"]["Enums"]["content_type"]
+          created_at?: string
+          description?: string | null
+          external_watch_links?: Json | null
+          hero_order?: number | null
+          id?: string
+          is_published?: boolean | null
+          poster_url?: string | null
+          section_assignments?:
+            | Database["public"]["Enums"]["section_type"][]
+            | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          video_embed_url?: string | null
+        }
+        Relationships: []
+      }
+      creator_promotions: {
+        Row: {
+          approval_status: Database["public"]["Enums"]["approval_status"] | null
+          channel_url: string | null
+          created_at: string
+          creator_name: string
+          end_date: string | null
+          id: string
+          is_featured: boolean | null
+          is_live: boolean | null
+          placement_locations: string[] | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          start_date: string | null
+          submitter_email: string | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          channel_url?: string | null
+          created_at?: string
+          creator_name: string
+          end_date?: string | null
+          id?: string
+          is_featured?: boolean | null
+          is_live?: boolean | null
+          placement_locations?: string[] | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          start_date?: string | null
+          submitter_email?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_status?:
+            | Database["public"]["Enums"]["approval_status"]
+            | null
+          channel_url?: string | null
+          created_at?: string
+          creator_name?: string
+          end_date?: string | null
+          id?: string
+          is_featured?: boolean | null
+          is_live?: boolean | null
+          placement_locations?: string[] | null
+          platform?: Database["public"]["Enums"]["platform_type"]
+          start_date?: string | null
+          submitter_email?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      approval_status: "pending" | "approved" | "rejected"
+      badge_type: "trending" | "sponsored" | "live" | "featured"
+      content_type: "movie" | "tv" | "sports" | "clip"
+      platform_type: "twitch" | "youtube" | "kick"
+      section_type: "hero" | "trending" | "recently_added" | "editor_picks"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +375,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      approval_status: ["pending", "approved", "rejected"],
+      badge_type: ["trending", "sponsored", "live", "featured"],
+      content_type: ["movie", "tv", "sports", "clip"],
+      platform_type: ["twitch", "youtube", "kick"],
+      section_type: ["hero", "trending", "recently_added", "editor_picks"],
+    },
   },
 } as const

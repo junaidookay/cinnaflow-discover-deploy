@@ -1,0 +1,296 @@
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Database } from '@/integrations/supabase/types';
+
+type ContentItem = Database['public']['Tables']['content_items']['Row'];
+type ContentType = Database['public']['Enums']['content_type'];
+type BadgeType = Database['public']['Enums']['badge_type'];
+type SectionType = Database['public']['Enums']['section_type'];
+
+interface ContentFormModalProps {
+  item: ContentItem | null;
+  onClose: () => void;
+  onSave: () => void;
+}
+
+const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
+  const [formData, setFormData] = useState({
+    title: item?.title || '',
+    content_type: (item?.content_type || 'movie') as ContentType,
+    description: item?.description || '',
+    tags: item?.tags?.join(', ') || '',
+    thumbnail_url: item?.thumbnail_url || '',
+    poster_url: item?.poster_url || '',
+    video_embed_url: item?.video_embed_url || '',
+    badges: item?.badges || [],
+    section_assignments: item?.section_assignments || [],
+    hero_order: item?.hero_order || null,
+    is_published: item?.is_published || false,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const data = {
+      title: formData.title,
+      content_type: formData.content_type,
+      description: formData.description,
+      tags: formData.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      thumbnail_url: formData.thumbnail_url || null,
+      poster_url: formData.poster_url || null,
+      video_embed_url: formData.video_embed_url || null,
+      badges: formData.badges as BadgeType[],
+      section_assignments: formData.section_assignments as SectionType[],
+      hero_order: formData.hero_order,
+      is_published: formData.is_published,
+    };
+
+    try {
+      if (item) {
+        const { error } = await supabase
+          .from('content_items')
+          .update(data)
+          .eq('id', item.id);
+        if (error) throw error;
+        toast.success('Content updated');
+      } else {
+        const { error } = await supabase.from('content_items').insert(data);
+        if (error) throw error;
+        toast.success('Content created');
+      }
+      onSave();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleArrayValue = (
+    field: 'badges' | 'section_assignments',
+    value: string
+  ) => {
+    const current = formData[field] as string[];
+    const updated = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
+    setFormData({ ...formData, [field]: updated });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">
+            {item ? 'Edit Content' : 'Add Content'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-secondary rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Title *
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Content Type *
+              </label>
+              <select
+                value={formData.content_type}
+                onChange={(e) =>
+                  setFormData({ ...formData, content_type: e.target.value as ContentType })
+                }
+                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="movie">Movie</option>
+                <option value="tv">TV Show</option>
+                <option value="sports">Sports</option>
+                <option value="clip">Clip</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              rows={3}
+              className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="Brief description (max 3-4 lines)"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Tags (comma-separated)
+            </label>
+            <input
+              type="text"
+              value={formData.tags}
+              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Action, Drama, Thriller"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Thumbnail URL
+              </label>
+              <input
+                type="url"
+                value={formData.thumbnail_url}
+                onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
+                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                Poster URL
+              </label>
+              <input
+                type="url"
+                value={formData.poster_url}
+                onChange={(e) => setFormData({ ...formData, poster_url: e.target.value })}
+                className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">
+              Video Embed URL
+            </label>
+            <input
+              type="url"
+              value={formData.video_embed_url}
+              onChange={(e) => setFormData({ ...formData, video_embed_url: e.target.value })}
+              className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="https://www.youtube.com/embed/..."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Badges
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {['trending', 'featured', 'sponsored'].map((badge) => (
+                <button
+                  key={badge}
+                  type="button"
+                  onClick={() => toggleArrayValue('badges', badge)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    (formData.badges as string[]).includes(badge)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {badge.charAt(0).toUpperCase() + badge.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Section Assignments
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {['hero', 'trending', 'recently_added', 'editor_picks'].map((section) => (
+                <button
+                  key={section}
+                  type="button"
+                  onClick={() => toggleArrayValue('section_assignments', section)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    (formData.section_assignments as string[]).includes(section)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {section.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.is_published}
+                onChange={(e) => setFormData({ ...formData, is_published: e.target.checked })}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span className="text-sm text-foreground">Published</span>
+            </label>
+
+            {(formData.section_assignments as string[]).includes('hero') && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-foreground">Hero Order:</label>
+                <input
+                  type="number"
+                  value={formData.hero_order || ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      hero_order: e.target.value ? parseInt(e.target.value) : null,
+                    })
+                  }
+                  className="w-20 px-2 py-1 bg-secondary border border-border rounded text-foreground"
+                  min="1"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-border">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 bg-secondary text-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ContentFormModal;

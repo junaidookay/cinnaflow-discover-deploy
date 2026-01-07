@@ -22,7 +22,6 @@ const AdminContent = () => {
     if (filter !== 'all' && (filter === 'movie' || filter === 'tv' || filter === 'sports' || filter === 'clip')) {
       query = query.eq('content_type', filter);
     }
-    }
     
     const { data, error } = await query;
     

@@ -2,49 +2,53 @@ import { useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ArtistCard from "./ArtistCard";
+import { useApprovedArtists } from "@/hooks/useContent";
 
-interface Artist {
-  id: number;
-  name: string;
-  image: string;
-  isSponsored?: boolean;
-}
-
-const artists: Artist[] = [
+// Fallback data when no database content
+const fallbackArtists = [
   {
-    id: 1,
-    name: "Luna Eclipse",
-    image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80",
+    id: "fallback-1",
+    artist_name: "Luna Eclipse",
+    thumbnail_url: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80",
+    is_sponsored: true,
   },
   {
-    id: 2,
-    name: "Neon Pulse",
-    image: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&q=80",
+    id: "fallback-2",
+    artist_name: "Neon Pulse",
+    thumbnail_url: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&q=80",
+    is_sponsored: true,
   },
   {
-    id: 3,
-    name: "Velvet Storm",
-    image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80",
+    id: "fallback-3",
+    artist_name: "Velvet Storm",
+    thumbnail_url: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80",
+    is_sponsored: true,
   },
   {
-    id: 4,
-    name: "Crystal Waves",
-    image: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=600&q=80",
+    id: "fallback-4",
+    artist_name: "Crystal Waves",
+    thumbnail_url: "https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=600&q=80",
+    is_sponsored: true,
   },
   {
-    id: 5,
-    name: "Midnight Rhythm",
-    image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80",
+    id: "fallback-5",
+    artist_name: "Midnight Rhythm",
+    thumbnail_url: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80",
+    is_sponsored: true,
   },
   {
-    id: 6,
-    name: "Aurora Beats",
-    image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80",
+    id: "fallback-6",
+    artist_name: "Aurora Beats",
+    thumbnail_url: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80",
+    is_sponsored: true,
   },
 ];
 
 const ArtistRow = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { data: artists, isLoading } = useApprovedArtists();
+
+  const displayArtists = artists && artists.length > 0 ? artists : fallbackArtists;
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
@@ -55,6 +59,21 @@ const ArtistRow = () => {
       });
     }
   };
+
+  if (isLoading) {
+    return (
+      <section className="py-8 md:py-12">
+        <div className="container mx-auto px-4 md:px-8">
+          <div className="h-8 w-48 bg-secondary rounded animate-pulse mb-6" />
+          <div className="flex gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex-shrink-0 w-[200px] md:w-[240px] aspect-square bg-secondary rounded-full animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="py-8 md:py-12">
@@ -99,7 +118,7 @@ const ArtistRow = () => {
           ref={scrollRef}
           className="flex gap-4 overflow-x-auto no-scrollbar pb-4 -mx-4 px-4 md:mx-0 md:px-0"
         >
-          {artists.map((artist, index) => (
+          {displayArtists.map((artist, index) => (
             <motion.div
               key={artist.id}
               initial={{ opacity: 0, y: 20 }}
@@ -109,9 +128,9 @@ const ArtistRow = () => {
               className="flex-shrink-0 w-[200px] md:w-[240px]"
             >
               <ArtistCard
-                name={artist.name}
-                image={artist.image}
-                isSponsored={artist.isSponsored !== false}
+                name={artist.artist_name}
+                image={artist.thumbnail_url || ""}
+                isSponsored={artist.is_sponsored ?? true}
               />
             </motion.div>
           ))}

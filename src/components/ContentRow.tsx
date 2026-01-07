@@ -1,22 +1,20 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import ContentCard from "./ContentCard";
+import type { Tables } from "@/integrations/supabase/types";
 
-interface ContentItem {
-  id: number;
-  title: string;
-  image: string;
-  badge?: "trending" | "sponsored" | "live" | "featured";
-}
+type ContentItem = Tables<"content_items">;
 
 interface ContentRowProps {
   title: string;
   items: ContentItem[];
   aspectRatio?: "video" | "poster" | "square";
+  isLoading?: boolean;
 }
 
-const ContentRow = ({ title, items, aspectRatio = "video" }: ContentRowProps) => {
+const ContentRow = ({ title, items, aspectRatio = "video", isLoading }: ContentRowProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -28,6 +26,23 @@ const ContentRow = ({ title, items, aspectRatio = "video" }: ContentRowProps) =>
       });
     }
   };
+
+  if (isLoading) {
+    return (
+      <section className="py-8 md:py-12">
+        <div className="container mx-auto px-4 md:px-8">
+          <div className="h-8 w-48 bg-secondary rounded animate-pulse mb-6" />
+          <div className="flex gap-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex-shrink-0 w-[280px] md:w-[320px] aspect-video bg-secondary rounded-lg animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (items.length === 0) return null;
 
   return (
     <section className="py-8 md:py-12">
@@ -76,12 +91,14 @@ const ContentRow = ({ title, items, aspectRatio = "video" }: ContentRowProps) =>
               transition={{ delay: index * 0.1 }}
               className="flex-shrink-0 w-[280px] md:w-[320px]"
             >
-              <ContentCard
-                title={item.title}
-                image={item.image}
-                badge={item.badge}
-                aspectRatio={aspectRatio}
-              />
+              <Link to={`/content/${item.id}`}>
+                <ContentCard
+                  title={item.title}
+                  image={item.thumbnail_url || item.poster_url || ""}
+                  badge={item.badges?.[0]}
+                  aspectRatio={aspectRatio}
+                />
+              </Link>
             </motion.div>
           ))}
         </div>

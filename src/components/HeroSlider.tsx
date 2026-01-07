@@ -1,59 +1,77 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useHeroContent } from "@/hooks/useContent";
 import hero1 from "@/assets/hero-1.jpg";
 import hero2 from "@/assets/hero-2.jpg";
 import hero3 from "@/assets/hero-3.jpg";
 import hero4 from "@/assets/hero-4.jpg";
 
-interface Slide {
-  id: number;
-  title: string;
-  tagline: string;
-  image: string;
-  type: "show" | "sports" | "artist" | "creator";
-}
-
-const slides: Slide[] = [
+// Fallback slides when no database content
+const fallbackSlides = [
   {
-    id: 1,
+    id: "fallback-1",
     title: "The Midnight Chronicles",
-    tagline: "A journey through time and space awaits",
-    image: hero1,
-    type: "show",
+    description: "A journey through time and space awaits",
+    poster_url: hero1,
+    thumbnail_url: null,
+    content_type: "movie" as const,
   },
   {
-    id: 2,
+    id: "fallback-2",
     title: "Championship Finals",
-    tagline: "Witness history in the making",
-    image: hero2,
-    type: "sports",
+    description: "Witness history in the making",
+    poster_url: hero2,
+    thumbnail_url: null,
+    content_type: "sports" as const,
   },
   {
-    id: 3,
+    id: "fallback-3",
     title: "Velvet Sounds",
-    tagline: "Experience the new wave of music",
-    image: hero3,
-    type: "artist",
+    description: "Experience the new wave of music",
+    poster_url: hero3,
+    thumbnail_url: null,
+    content_type: "clip" as const,
   },
   {
-    id: 4,
+    id: "fallback-4",
     title: "Creator Spotlight",
-    tagline: "Discover trending creators live now",
-    image: hero4,
-    type: "creator",
+    description: "Discover trending creators live now",
+    poster_url: hero4,
+    thumbnail_url: null,
+    content_type: "tv" as const,
   },
 ];
 
+const getTypeLabel = (type: string) => {
+  switch (type) {
+    case "movie":
+      return "Trending Now";
+    case "sports":
+      return "Live Sports";
+    case "tv":
+      return "Featured Series";
+    case "clip":
+      return "Featured Clip";
+    default:
+      return "Featured";
+  }
+};
+
 const HeroSlider = () => {
   const [current, setCurrent] = useState(0);
+  const { data: heroContent, isLoading } = useHeroContent();
+
+  const slides = heroContent && heroContent.length > 0 ? heroContent : fallbackSlides;
 
   useEffect(() => {
+    if (slides.length === 0) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % slides.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
 
   const goTo = (index: number) => {
     setCurrent(index);
@@ -66,6 +84,16 @@ const HeroSlider = () => {
   const next = () => {
     setCurrent((prev) => (prev + 1) % slides.length);
   };
+
+  if (isLoading) {
+    return (
+      <section className="relative h-[70vh] md:h-[85vh] bg-background animate-pulse" />
+    );
+  }
+
+  if (slides.length === 0) return null;
+
+  const currentSlide = slides[current];
 
   return (
     <section className="relative h-[70vh] md:h-[85vh] overflow-hidden">
@@ -81,7 +109,7 @@ const HeroSlider = () => {
           {/* Background Image */}
           <div
             className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${slides[current].image})` }}
+            style={{ backgroundImage: `url(${currentSlide.poster_url || currentSlide.thumbnail_url})` }}
           />
           
           {/* Gradient Overlays */}
@@ -102,24 +130,24 @@ const HeroSlider = () => {
             className="max-w-2xl"
           >
             <span className="inline-block px-3 py-1 mb-4 text-xs font-semibold uppercase tracking-wider bg-primary/20 text-primary rounded-full">
-              {slides[current].type === "show" && "Trending Now"}
-              {slides[current].type === "sports" && "Live Sports"}
-              {slides[current].type === "artist" && "Featured Artist"}
-              {slides[current].type === "creator" && "Creator Spotlight"}
+              {getTypeLabel(currentSlide.content_type)}
             </span>
             
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-display text-foreground mb-4 tracking-wide">
-              {slides[current].title}
+              {currentSlide.title}
             </h1>
             
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-lg">
-              {slides[current].tagline}
+              {currentSlide.description || "Discover something new"}
             </p>
             
-            <button className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-all duration-200 group">
+            <Link 
+              to={currentSlide.id.startsWith("fallback") ? "#" : `/content/${currentSlide.id}`}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-lg hover:bg-primary/90 transition-all duration-200 group"
+            >
               <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
               Explore
-            </button>
+            </Link>
           </motion.div>
         </AnimatePresence>
       </div>

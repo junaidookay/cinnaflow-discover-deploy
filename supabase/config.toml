@@ -1,1 +1,4 @@
 project_id = "qsjisndjbjeoqwbairal"
+
+[functions.plex-import]
+verify_jwt = false

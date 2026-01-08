@@ -10,6 +10,7 @@ import ContentDetail from "./pages/ContentDetail";
 import Promote from "./pages/Promote";
 import SubmitArtist from "./pages/SubmitArtist";
 import SubmitCreator from "./pages/SubmitCreator";
+import CategoryPage from "./pages/CategoryPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminContent from "./pages/admin/AdminContent";
 import AdminArtists from "./pages/admin/AdminArtists";
@@ -33,6 +34,10 @@ const App = () => (
             <Route path="/promote" element={<Promote />} />
             <Route path="/submit/artist" element={<SubmitArtist />} />
             <Route path="/submit/creator" element={<SubmitCreator />} />
+            <Route path="/movies" element={<CategoryPage />} />
+            <Route path="/tv" element={<CategoryPage />} />
+            <Route path="/sports" element={<CategoryPage />} />
+            <Route path="/clips" element={<CategoryPage />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/content" element={<AdminContent />} />
             <Route path="/admin/artists" element={<AdminArtists />} />

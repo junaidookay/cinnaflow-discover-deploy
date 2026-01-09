@@ -76,6 +76,13 @@ const UserMenu = () => {
         )}
         
         <DropdownMenuItem asChild>
+          <Link to="/dashboard" className="cursor-pointer">
+            <LayoutDashboard className="w-4 h-4 mr-2" />
+            My Dashboard
+          </Link>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem asChild>
           <Link to="/profile" className="cursor-pointer">
             <User className="w-4 h-4 mr-2" />
             Profile

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Music, Video, Play } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
@@ -10,11 +11,21 @@ const emailSchema = z.string().trim().email('Invalid email address').max(255);
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters').max(72);
 const nameSchema = z.string().trim().max(100).optional();
 
+type AccountType = 'viewer' | 'artist' | 'creator';
+
+const accountTypeOptions: { value: AccountType; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: 'viewer', label: 'Viewer', icon: <Play className="w-5 h-5" />, description: 'Watch movies, shows & streams' },
+  { value: 'artist', label: 'Artist / Music Producer', icon: <Music className="w-5 h-5" />, description: 'Promote your music' },
+  { value: 'creator', label: 'Creator / Streamer', icon: <Video className="w-5 h-5" />, description: 'Grow your audience' },
+];
+
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [accountType, setAccountType] = useState<AccountType>('viewer');
+  const [showAccountTypes, setShowAccountTypes] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
@@ -24,7 +35,7 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate('/dashboard');
     }
   }, [user, navigate]);
 
@@ -70,7 +81,7 @@ const Auth = () => {
           }
         } else {
           toast.success('Welcome back!');
-          navigate('/');
+          navigate('/dashboard');
         }
       } else {
         const { error } = await signUp(email, password, fullName);
@@ -81,8 +92,20 @@ const Auth = () => {
             toast.error(error.message);
           }
         } else {
+          // Update profile with account type after successful signup
+          // Wait a moment for the profile to be created by the trigger
+          setTimeout(async () => {
+            const { data: { user: newUser } } = await supabase.auth.getUser();
+            if (newUser) {
+              await supabase
+                .from('profiles')
+                .update({ account_type: accountType })
+                .eq('id', newUser.id);
+            }
+          }, 500);
+          
           toast.success('Account created successfully!');
-          navigate('/');
+          navigate('/dashboard');
         }
       }
     } finally {
@@ -107,24 +130,72 @@ const Auth = () => {
         <div className="bg-card border border-border rounded-xl p-6 md:p-8">
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  Full Name
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="John Doe"
-                  />
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  {errors.name && (
+                    <p className="text-destructive text-sm mt-1">{errors.name}</p>
+                  )}
                 </div>
-                {errors.name && (
-                  <p className="text-destructive text-sm mt-1">{errors.name}</p>
+
+                {/* Account Type Selection */}
+                {showAccountTypes ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                      Account Type
+                    </label>
+                    <div className="space-y-2">
+                      {accountTypeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setAccountType(option.value)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                            accountType === option.value
+                              ? 'border-primary bg-primary/10'
+                              : 'border-border bg-secondary hover:border-primary/50'
+                          }`}
+                        >
+                          <div className={`${accountType === option.value ? 'text-primary' : 'text-muted-foreground'}`}>
+                            {option.icon}
+                          </div>
+                          <div className="flex-1">
+                            <p className={`font-medium text-sm ${accountType === option.value ? 'text-primary' : 'text-foreground'}`}>
+                              {option.label}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{option.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAccountTypes(true)}
+                    className="w-full text-left p-3 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-lg hover:border-primary/40 transition-colors"
+                  >
+                    <p className="text-sm font-medium text-primary">
+                      Are you an artist or creator? Click here
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Get access to promotion tools and dashboards
+                    </p>
+                  </button>
                 )}
-              </div>
+              </>
             )}
 
             <div>
@@ -190,6 +261,8 @@ const Auth = () => {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setErrors({});
+                  setShowAccountTypes(false);
+                  setAccountType('viewer');
                 }}
                 className="ml-1 text-primary hover:underline font-medium"
               >

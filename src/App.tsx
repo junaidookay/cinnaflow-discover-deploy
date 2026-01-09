@@ -6,11 +6,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
 import ContentDetail from "./pages/ContentDetail";
 import Promote from "./pages/Promote";
 import SubmitArtist from "./pages/SubmitArtist";
 import SubmitCreator from "./pages/SubmitCreator";
 import CategoryPage from "./pages/CategoryPage";
+import ArtistsPage from "./pages/ArtistsPage";
+import CreatorsPage from "./pages/CreatorsPage";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -33,6 +36,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/promote" element={<Promote />} />
             <Route path="/submit/artist" element={<SubmitArtist />} />
@@ -41,6 +45,8 @@ const App = () => (
             <Route path="/tv" element={<CategoryPage />} />
             <Route path="/sports" element={<CategoryPage />} />
             <Route path="/clips" element={<CategoryPage />} />
+            <Route path="/artists" element={<ArtistsPage />} />
+            <Route path="/creators" element={<CreatorsPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<AdminDashboard />} />

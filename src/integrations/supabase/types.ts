@@ -183,6 +183,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_type: Database["public"]["Enums"]["account_type"]
           avatar_url: string | null
           created_at: string
           email: string | null
@@ -191,6 +192,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_type?: Database["public"]["Enums"]["account_type"]
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -199,6 +201,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_type?: Database["public"]["Enums"]["account_type"]
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -243,6 +246,7 @@ export type Database = {
       }
     }
     Enums: {
+      account_type: "viewer" | "artist" | "creator"
       app_role: "admin" | "user"
       approval_status: "pending" | "approved" | "rejected"
       badge_type: "trending" | "sponsored" | "live" | "featured"
@@ -376,6 +380,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_type: ["viewer", "artist", "creator"],
       app_role: ["admin", "user"],
       approval_status: ["pending", "approved", "rejected"],
       badge_type: ["trending", "sponsored", "live", "featured"],

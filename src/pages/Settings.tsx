@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,12 +22,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Lock, Bell, Trash2 } from "lucide-react";
+import { Loader2, Lock, Bell, Trash2, User, Music, Video, Play } from "lucide-react";
+
+type AccountType = "viewer" | "artist" | "creator";
+
+const accountTypeOptions: { value: AccountType; label: string; icon: React.ReactNode; description: string }[] = [
+  { value: "viewer", label: "Viewer", icon: <Play className="w-5 h-5" />, description: "Watch movies, shows & streams" },
+  { value: "artist", label: "Artist / Music Producer", icon: <Music className="w-5 h-5" />, description: "Promote your music" },
+  { value: "creator", label: "Creator / Streamer", icon: <Video className="w-5 h-5" />, description: "Grow your audience" },
+];
 
 const Settings = () => {
   const { user, isLoading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isSavingAccountType, setIsSavingAccountType] = useState(false);
+  const [currentAccountType, setCurrentAccountType] = useState<AccountType>("viewer");
+  const [selectedAccountType, setSelectedAccountType] = useState<AccountType>("viewer");
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -37,6 +48,25 @@ const Settings = () => {
     email: true,
     marketing: false,
   });
+
+  useEffect(() => {
+    if (user) {
+      // Fetch current account type
+      const fetchAccountType = async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select("account_type")
+          .eq("id", user.id)
+          .single();
+        
+        if (data?.account_type) {
+          setCurrentAccountType(data.account_type as AccountType);
+          setSelectedAccountType(data.account_type as AccountType);
+        }
+      };
+      fetchAccountType();
+    }
+  }, [user]);
 
   if (authLoading) {
     return (
@@ -50,6 +80,26 @@ const Settings = () => {
     navigate("/auth");
     return null;
   }
+
+  const handleAccountTypeChange = async () => {
+    if (selectedAccountType === currentAccountType) return;
+    
+    setIsSavingAccountType(true);
+    
+    const { error } = await supabase
+      .from("profiles")
+      .update({ account_type: selectedAccountType })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error("Failed to update account type");
+    } else {
+      setCurrentAccountType(selectedAccountType);
+      toast.success("Account type updated! Your dashboard will reflect this change.");
+    }
+
+    setIsSavingAccountType(false);
+  };
 
   const handlePasswordChange = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -79,7 +129,6 @@ const Settings = () => {
   };
 
   const handleDeleteAccount = async () => {
-    // In a real app, you'd call an edge function to delete the user
     toast.error("Account deletion requires admin approval. Please contact support.");
   };
 
@@ -94,6 +143,63 @@ const Settings = () => {
           </h1>
 
           <div className="space-y-6">
+            {/* Account Type */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Account Type
+                </CardTitle>
+                <CardDescription>
+                  Choose how you want to use CinnaFlow. This affects your dashboard experience.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  {accountTypeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setSelectedAccountType(option.value)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                        selectedAccountType === option.value
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-secondary hover:border-primary/50"
+                      }`}
+                    >
+                      <div className={`${selectedAccountType === option.value ? "text-primary" : "text-muted-foreground"}`}>
+                        {option.icon}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`font-medium text-sm ${selectedAccountType === option.value ? "text-primary" : "text-foreground"}`}>
+                          {option.label}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{option.description}</p>
+                      </div>
+                      {currentAccountType === option.value && (
+                        <span className="text-xs text-muted-foreground">Current</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {selectedAccountType !== currentAccountType && (
+                  <Button
+                    onClick={handleAccountTypeChange}
+                    disabled={isSavingAccountType}
+                  >
+                    {isSavingAccountType ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Account Type"
+                    )}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Security */}
             <Card>
               <CardHeader>

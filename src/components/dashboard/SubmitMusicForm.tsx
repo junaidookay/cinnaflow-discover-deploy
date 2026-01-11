@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Music, Loader2, CheckCircle } from 'lucide-react';
+import FileUploadField from './FileUploadField';
 
 const schema = z.object({
   artistName: z.string().min(1, 'Artist name is required').max(100),
   videoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   thumbnailUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  musicFileUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   youtube: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   spotify: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   instagram: z.string().url('Must be a valid URL').optional().or(z.literal('')),
@@ -29,6 +31,7 @@ const SubmitMusicForm = ({ onSuccess }: SubmitMusicFormProps) => {
     artistName: '',
     videoUrl: '',
     thumbnailUrl: '',
+    musicFileUrl: '',
     youtube: '',
     spotify: '',
     instagram: '',
@@ -54,6 +57,7 @@ const SubmitMusicForm = ({ onSuccess }: SubmitMusicFormProps) => {
       artist_name: formData.artistName,
       video_embed_url: formData.videoUrl || null,
       thumbnail_url: formData.thumbnailUrl || null,
+      music_file_url: formData.musicFileUrl || null,
       external_links: {
         youtube: formData.youtube || null,
         spotify: formData.spotify || null,
@@ -87,7 +91,7 @@ const SubmitMusicForm = ({ onSuccess }: SubmitMusicFormProps) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="artistName">Artist Name *</Label>
         <Input
@@ -99,6 +103,28 @@ const SubmitMusicForm = ({ onSuccess }: SubmitMusicFormProps) => {
         />
       </div>
 
+      {/* Music File Upload */}
+      <FileUploadField
+        label="Music File"
+        accept="audio/*,.mp3,.wav,.flac,.aac,.ogg"
+        fileType="audio"
+        value={formData.musicFileUrl}
+        onChange={(url) => setFormData({ ...formData, musicFileUrl: url })}
+        userId={user?.id || ''}
+        placeholder="https://soundcloud.com/... or direct audio URL"
+      />
+
+      {/* Thumbnail Upload */}
+      <FileUploadField
+        label="Thumbnail / Cover Art"
+        accept="image/*,.jpg,.jpeg,.png,.webp"
+        fileType="image"
+        value={formData.thumbnailUrl}
+        onChange={(url) => setFormData({ ...formData, thumbnailUrl: url })}
+        userId={user?.id || ''}
+        placeholder="https://example.com/cover.jpg"
+      />
+
       <div className="space-y-2">
         <Label htmlFor="videoUrl">Music Video Embed URL</Label>
         <Input
@@ -108,49 +134,44 @@ const SubmitMusicForm = ({ onSuccess }: SubmitMusicFormProps) => {
           onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
           placeholder="https://youtube.com/embed/..."
         />
+        <p className="text-xs text-muted-foreground">
+          YouTube, Vimeo, or other embeddable video URL
+        </p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
-        <Input
-          id="thumbnailUrl"
-          type="url"
-          value={formData.thumbnailUrl}
-          onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-          placeholder="https://..."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="youtube">YouTube</Label>
-          <Input
-            id="youtube"
-            type="url"
-            value={formData.youtube}
-            onChange={(e) => setFormData({ ...formData, youtube: e.target.value })}
-            placeholder="YouTube link"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="spotify">Spotify</Label>
-          <Input
-            id="spotify"
-            type="url"
-            value={formData.spotify}
-            onChange={(e) => setFormData({ ...formData, spotify: e.target.value })}
-            placeholder="Spotify link"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="instagram">Instagram</Label>
-          <Input
-            id="instagram"
-            type="url"
-            value={formData.instagram}
-            onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
-            placeholder="Instagram link"
-          />
+      <div className="border-t border-border pt-6">
+        <Label className="text-sm font-medium mb-3 block">Social Links</Label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="youtube" className="text-xs text-muted-foreground">YouTube</Label>
+            <Input
+              id="youtube"
+              type="url"
+              value={formData.youtube}
+              onChange={(e) => setFormData({ ...formData, youtube: e.target.value })}
+              placeholder="YouTube link"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="spotify" className="text-xs text-muted-foreground">Spotify</Label>
+            <Input
+              id="spotify"
+              type="url"
+              value={formData.spotify}
+              onChange={(e) => setFormData({ ...formData, spotify: e.target.value })}
+              placeholder="Spotify link"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="instagram" className="text-xs text-muted-foreground">Instagram</Label>
+            <Input
+              id="instagram"
+              type="url"
+              value={formData.instagram}
+              onChange={(e) => setFormData({ ...formData, instagram: e.target.value })}
+              placeholder="Instagram link"
+            />
+          </div>
         </div>
       </div>
 

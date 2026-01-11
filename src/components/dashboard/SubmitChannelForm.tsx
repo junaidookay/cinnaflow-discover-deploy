@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Video, Loader2, CheckCircle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
+import FileUploadField from './FileUploadField';
 
 type PlatformType = Database['public']['Enums']['platform_type'];
 
@@ -83,7 +84,7 @@ const SubmitChannelForm = ({ onSuccess }: SubmitChannelFormProps) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="creatorName">Creator Name *</Label>
         <Input
@@ -124,16 +125,16 @@ const SubmitChannelForm = ({ onSuccess }: SubmitChannelFormProps) => {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="thumbnailUrl">Thumbnail URL</Label>
-        <Input
-          id="thumbnailUrl"
-          type="url"
-          value={formData.thumbnailUrl}
-          onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-          placeholder="https://..."
-        />
-      </div>
+      {/* Thumbnail Upload */}
+      <FileUploadField
+        label="Channel Thumbnail / Banner"
+        accept="image/*,.jpg,.jpeg,.png,.webp"
+        fileType="image"
+        value={formData.thumbnailUrl}
+        onChange={(url) => setFormData({ ...formData, thumbnailUrl: url })}
+        userId={user?.id || ''}
+        placeholder="https://example.com/thumbnail.jpg"
+      />
 
       <Button type="submit" disabled={isSubmitting} className="w-full">
         {isSubmitting ? (

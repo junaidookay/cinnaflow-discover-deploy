@@ -18,11 +18,13 @@ export type Database = {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"] | null
           artist_name: string
+          audio_preview_url: string | null
           created_at: string
           end_date: string | null
           external_links: Json | null
           id: string
           is_sponsored: boolean | null
+          music_file_url: string | null
           placement_locations: string[] | null
           start_date: string | null
           submitter_email: string | null
@@ -35,11 +37,13 @@ export type Database = {
             | Database["public"]["Enums"]["approval_status"]
             | null
           artist_name: string
+          audio_preview_url?: string | null
           created_at?: string
           end_date?: string | null
           external_links?: Json | null
           id?: string
           is_sponsored?: boolean | null
+          music_file_url?: string | null
           placement_locations?: string[] | null
           start_date?: string | null
           submitter_email?: string | null
@@ -52,11 +56,13 @@ export type Database = {
             | Database["public"]["Enums"]["approval_status"]
             | null
           artist_name?: string
+          audio_preview_url?: string | null
           created_at?: string
           end_date?: string | null
           external_links?: Json | null
           id?: string
           is_sponsored?: boolean | null
+          music_file_url?: string | null
           placement_locations?: string[] | null
           start_date?: string | null
           submitter_email?: string | null
@@ -208,6 +214,42 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      promotion_analytics: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          ip_hash: string | null
+          promotion_id: string
+          promotion_type: string
+          referrer: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          ip_hash?: string | null
+          promotion_id: string
+          promotion_type: string
+          referrer?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          ip_hash?: string | null
+          promotion_id?: string
+          promotion_type?: string
+          referrer?: string | null
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

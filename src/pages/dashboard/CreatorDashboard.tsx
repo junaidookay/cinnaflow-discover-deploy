@@ -7,10 +7,12 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SubmitChannelForm from "@/components/dashboard/SubmitChannelForm";
 import QuickPromotion from "@/components/dashboard/QuickPromotion";
-import { Video, BarChart3, Settings, Clock, CheckCircle, XCircle, Plus, ChevronDown, ChevronUp, Twitch, Youtube } from "lucide-react";
+import AnalyticsDashboard from "@/components/dashboard/AnalyticsDashboard";
+import { Video, BarChart3, Settings, Clock, CheckCircle, XCircle, Plus, ChevronDown, ChevronUp, Twitch, Youtube, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const platformIcons: Record<string, React.ReactNode> = {
   twitch: <Twitch className="w-6 h-6" />,
@@ -38,6 +40,9 @@ const CreatorDashboard = () => {
     enabled: !!user?.email,
   });
 
+  const approvedSubmissions = submissions?.filter(s => s.approval_status === 'approved') || [];
+  const promotionIds = approvedSubmissions.map(s => s.id);
+
   const statusIcons = {
     pending: <Clock className="w-4 h-4 text-yellow-500" />,
     approved: <CheckCircle className="w-4 h-4 text-green-500" />,
@@ -60,143 +65,184 @@ const CreatorDashboard = () => {
               Creator Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Submit your channel and manage promotions
+              Submit your channel, track performance, and manage promotions
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Submit Channel Section */}
-              <div className="bg-card border border-border rounded-xl overflow-hidden">
-                <Collapsible open={showSubmitForm} onOpenChange={setShowSubmitForm}>
-                  <CollapsibleTrigger asChild>
-                    <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-secondary/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                          <Plus className="w-5 h-5 text-primary-foreground" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">Submit Your Channel</h3>
-                          <p className="text-sm text-muted-foreground">Get featured on CinnaFlow</p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="icon">
-                        {showSubmitForm ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                      </Button>
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="px-6 pb-6 border-t border-border pt-6">
-                      <SubmitChannelForm onSuccess={() => {
-                        refetch();
-                        setShowSubmitForm(false);
-                      }} />
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="bg-secondary">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Analytics
+              </TabsTrigger>
+            </TabsList>
 
-              {/* Submissions List */}
-              <div className="bg-card border border-border rounded-xl p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" />
-                    Your Submissions
-                  </h2>
-                  <span className="text-sm text-muted-foreground">
-                    {submissions?.length || 0} total
-                  </span>
+            <TabsContent value="overview">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main Content */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Submit Channel Section */}
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <Collapsible open={showSubmitForm} onOpenChange={setShowSubmitForm}>
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-secondary/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                              <Plus className="w-5 h-5 text-primary-foreground" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-foreground">Submit Your Channel</h3>
+                              <p className="text-sm text-muted-foreground">Get featured on CinnaFlow</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="icon">
+                            {showSubmitForm ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                          </Button>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-6 pb-6 border-t border-border pt-6">
+                          <SubmitChannelForm onSuccess={() => {
+                            refetch();
+                            setShowSubmitForm(false);
+                          }} />
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+
+                  {/* Submissions List */}
+                  <div className="bg-card border border-border rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-primary" />
+                        Your Submissions
+                      </h2>
+                      <span className="text-sm text-muted-foreground">
+                        {submissions?.length || 0} total
+                      </span>
+                    </div>
+
+                    {isLoading ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Loading submissions...
+                      </div>
+                    ) : submissions && submissions.length > 0 ? (
+                      <div className="space-y-4">
+                        {submissions.map((submission) => (
+                          <div
+                            key={submission.id}
+                            className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg"
+                          >
+                            {submission.thumbnail_url ? (
+                              <img
+                                src={submission.thumbnail_url}
+                                alt={submission.creator_name}
+                                className="w-16 h-10 rounded object-cover"
+                              />
+                            ) : (
+                              <div className="w-16 h-10 rounded bg-primary/10 flex items-center justify-center">
+                                {platformIcons[submission.platform] || <Video className="w-6 h-6 text-primary" />}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium truncate">{submission.creator_name}</h4>
+                              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                                <span className="capitalize">{submission.platform}</span>
+                                •
+                                <span className="hidden sm:inline">Submitted {new Date(submission.created_at).toLocaleDateString()}</span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              {submission.is_live && (
+                                <Badge className="bg-red-600 text-white animate-pulse">
+                                  LIVE
+                                </Badge>
+                              )}
+                              <div className="flex items-center gap-2">
+                                {statusIcons[submission.approval_status || "pending"]}
+                                <span className="text-sm capitalize hidden sm:inline">
+                                  {submission.approval_status || "pending"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Video className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                        <p className="text-muted-foreground mb-4">
+                          You haven't submitted any channels yet
+                        </p>
+                        <Button onClick={() => setShowSubmitForm(true)}>
+                          <Plus className="w-4 h-4 mr-2" />
+                          Submit Your Channel
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {isLoading ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Loading submissions...
-                  </div>
-                ) : submissions && submissions.length > 0 ? (
-                  <div className="space-y-4">
-                    {submissions.map((submission) => (
-                      <div
-                        key={submission.id}
-                        className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg"
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Quick Promotion */}
+                  <QuickPromotion type="creator" />
+
+                  {/* Quick Links */}
+                  <div className="bg-card border border-border rounded-xl p-6">
+                    <h3 className="font-semibold text-foreground mb-4">Quick Links</h3>
+                    <div className="space-y-2">
+                      <Link
+                        to="/settings"
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                       >
-                        {submission.thumbnail_url ? (
-                          <img
-                            src={submission.thumbnail_url}
-                            alt={submission.creator_name}
-                            className="w-16 h-10 rounded object-cover"
-                          />
-                        ) : (
-                          <div className="w-16 h-10 rounded bg-primary/10 flex items-center justify-center">
-                            {platformIcons[submission.platform] || <Video className="w-6 h-6 text-primary" />}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium truncate">{submission.creator_name}</h4>
-                          <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span className="capitalize">{submission.platform}</span>
-                            •
-                            <span className="hidden sm:inline">Submitted {new Date(submission.created_at).toLocaleDateString()}</span>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          {submission.is_live && (
-                            <Badge className="bg-red-600 text-white animate-pulse">
-                              LIVE
-                            </Badge>
-                          )}
-                          <div className="flex items-center gap-2">
-                            {statusIcons[submission.approval_status || "pending"]}
-                            <span className="text-sm capitalize hidden sm:inline">
-                              {submission.approval_status || "pending"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                        <Settings className="w-5 h-5 text-primary" />
+                        <span className="text-foreground">Account Settings</span>
+                      </Link>
+                      <Link
+                        to="/creators"
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
+                      >
+                        <Video className="w-5 h-5 text-primary" />
+                        <span className="text-foreground">Browse Creators</span>
+                      </Link>
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Video className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground mb-4">
-                      You haven't submitted any channels yet
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              <div className="bg-card border border-border rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <TrendingUp className="w-6 h-6 text-primary" />
+                  <div>
+                    <h2 className="text-xl font-semibold text-foreground">Performance Analytics</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Track views, clicks, and engagement for your approved content
                     </p>
-                    <Button onClick={() => setShowSubmitForm(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Submit Your Channel
-                    </Button>
+                  </div>
+                </div>
+
+                {approvedSubmissions.length > 0 ? (
+                  <AnalyticsDashboard promotionIds={promotionIds} promotionType="creator" />
+                ) : (
+                  <div className="text-center py-12">
+                    <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <h3 className="font-medium text-foreground mb-2">No Analytics Yet</h3>
+                    <p className="text-muted-foreground max-w-md mx-auto">
+                      Analytics will appear here once your submissions are approved and start receiving engagement.
+                    </p>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Quick Promotion */}
-              <QuickPromotion type="creator" />
-
-              {/* Quick Links */}
-              <div className="bg-card border border-border rounded-xl p-6">
-                <h3 className="font-semibold text-foreground mb-4">Quick Links</h3>
-                <div className="space-y-2">
-                  <Link
-                    to="/settings"
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
-                  >
-                    <Settings className="w-5 h-5 text-primary" />
-                    <span className="text-foreground">Account Settings</span>
-                  </Link>
-                  <Link
-                    to="/creators"
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
-                  >
-                    <Video className="w-5 h-5 text-primary" />
-                    <span className="text-foreground">Browse Creators</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
 

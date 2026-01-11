@@ -1,17 +1,22 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Music, Rocket, BarChart3, Settings, Plus, Clock, CheckCircle, XCircle } from "lucide-react";
+import SubmitMusicForm from "@/components/dashboard/SubmitMusicForm";
+import QuickPromotion from "@/components/dashboard/QuickPromotion";
+import { Music, BarChart3, Settings, Clock, CheckCircle, XCircle, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const ArtistDashboard = () => {
   const { user } = useAuth();
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
 
-  // Fetch user's submissions
-  const { data: submissions, isLoading } = useQuery({
+  const { data: submissions, isLoading, refetch } = useQuery({
     queryKey: ["my-artist-submissions", user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
@@ -39,6 +44,7 @@ const ArtistDashboard = () => {
 
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4 md:px-8">
+          {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
               <Music className="w-6 h-6 text-primary" />
@@ -48,119 +54,133 @@ const ArtistDashboard = () => {
               Artist Dashboard
             </h1>
             <p className="text-muted-foreground">
-              Manage your music and promotions
+              Submit your music and manage promotions
             </p>
           </div>
 
-          {/* Quick actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <Link
-              to="/submit/artist"
-              className="bg-primary text-primary-foreground rounded-xl p-6 hover:bg-primary/90 transition-colors group"
-            >
-              <Plus className="w-8 h-8 mb-3" />
-              <h3 className="font-semibold mb-1">
-                Submit New Music
-              </h3>
-              <p className="text-sm opacity-90">
-                Get your music featured on CinnaFlow
-              </p>
-            </Link>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Submit Music Section */}
+              <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <Collapsible open={showSubmitForm} onOpenChange={setShowSubmitForm}>
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-6 cursor-pointer hover:bg-secondary/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                          <Plus className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">Submit Your Music</h3>
+                          <p className="text-sm text-muted-foreground">Get featured on CinnaFlow</p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="icon">
+                        {showSubmitForm ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </Button>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-6 pb-6 border-t border-border pt-6">
+                      <SubmitMusicForm onSuccess={() => {
+                        refetch();
+                        setShowSubmitForm(false);
+                      }} />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
 
-            <Link
-              to="/promote"
-              className="bg-card border border-border rounded-xl p-6 hover:border-primary transition-colors group"
-            >
-              <Rocket className="w-8 h-8 text-primary mb-3" />
-              <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
-                Boost Your Reach
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Explore promotion packages
-              </p>
-            </Link>
+              {/* Submissions List */}
+              <div className="bg-card border border-border rounded-xl p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                    Your Submissions
+                  </h2>
+                  <span className="text-sm text-muted-foreground">
+                    {submissions?.length || 0} total
+                  </span>
+                </div>
 
-            <Link
-              to="/settings"
-              className="bg-card border border-border rounded-xl p-6 hover:border-primary transition-colors group"
-            >
-              <Settings className="w-8 h-8 text-primary mb-3" />
-              <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">
-                Account Settings
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Manage your profile
-              </p>
-            </Link>
-          </div>
-
-          {/* Submissions */}
-          <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                Your Submissions
-              </h2>
-              <Link
-                to="/submit/artist"
-                className="text-sm text-primary hover:underline"
-              >
-                + New Submission
-              </Link>
+                {isLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading submissions...
+                  </div>
+                ) : submissions && submissions.length > 0 ? (
+                  <div className="space-y-4">
+                    {submissions.map((submission) => (
+                      <div
+                        key={submission.id}
+                        className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg"
+                      >
+                        {submission.thumbnail_url ? (
+                          <img
+                            src={submission.thumbnail_url}
+                            alt={submission.artist_name}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Music className="w-6 h-6 text-primary" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">{submission.artist_name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Submitted {new Date(submission.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {statusIcons[submission.approval_status || "pending"]}
+                          <span className="text-sm capitalize hidden sm:inline">
+                            {submission.approval_status || "pending"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Music className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground mb-4">
+                      You haven't submitted any music yet
+                    </p>
+                    <Button onClick={() => setShowSubmitForm(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Submit Your First Track
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading submissions...
-              </div>
-            ) : submissions && submissions.length > 0 ? (
-              <div className="space-y-4">
-                {submissions.map((submission) => (
-                  <div
-                    key={submission.id}
-                    className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg"
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Quick Promotion */}
+              <QuickPromotion type="artist" />
+
+              {/* Quick Links */}
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="font-semibold text-foreground mb-4">Quick Links</h3>
+                <div className="space-y-2">
+                  <Link
+                    to="/settings"
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
                   >
-                    {submission.thumbnail_url ? (
-                      <img
-                        src={submission.thumbnail_url}
-                        alt={submission.artist_name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Music className="w-6 h-6 text-primary" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-medium">{submission.artist_name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Submitted {new Date(submission.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {statusIcons[submission.approval_status || "pending"]}
-                      <span className="text-sm capitalize">
-                        {submission.approval_status || "pending"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                    <Settings className="w-5 h-5 text-primary" />
+                    <span className="text-foreground">Account Settings</span>
+                  </Link>
+                  <Link
+                    to="/artists"
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary transition-colors"
+                  >
+                    <Music className="w-5 h-5 text-primary" />
+                    <span className="text-foreground">Browse Artists</span>
+                  </Link>
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-8">
-                <Music className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground mb-4">
-                  You haven't submitted any music yet
-                </p>
-                <Link
-                  to="/submit/artist"
-                  className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Submit Your First Track
-                </Link>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </main>

@@ -132,6 +132,38 @@ export type Database = {
         }
         Relationships: []
       }
+      content_views: {
+        Row: {
+          content_id: string
+          id: string
+          session_id: string | null
+          user_id: string | null
+          viewed_at: string
+        }
+        Insert: {
+          content_id: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Update: {
+          content_id?: string
+          id?: string
+          session_id?: string | null
+          user_id?: string | null
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_views_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creator_promotions: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"] | null
@@ -184,6 +216,39 @@ export type Database = {
           submitter_email?: string | null
           thumbnail_url?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          message: string | null
+          notification_type: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          notification_type?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          message?: string | null
+          notification_type?: string
+          title?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -253,6 +318,45 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          started_at: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          tier?: Database["public"]["Enums"]["subscription_tier"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -273,6 +377,35 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      watchlist: {
+        Row: {
+          content_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          content_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          content_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -295,6 +428,7 @@ export type Database = {
       content_type: "movie" | "tv" | "sports" | "clip"
       platform_type: "twitch" | "youtube" | "kick"
       section_type: "hero" | "trending" | "recently_added" | "editor_picks"
+      subscription_tier: "free" | "premium" | "pro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -429,6 +563,7 @@ export const Constants = {
       content_type: ["movie", "tv", "sports", "clip"],
       platform_type: ["twitch", "youtube", "kick"],
       section_type: ["hero", "trending", "recently_added", "editor_picks"],
+      subscription_tier: ["free", "premium", "pro"],
     },
   },
 } as const

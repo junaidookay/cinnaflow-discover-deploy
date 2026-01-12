@@ -1,12 +1,15 @@
 import { motion } from "framer-motion";
 import { Play } from "lucide-react";
+import WatchlistButton from "@/components/WatchlistButton";
 
 interface ContentCardProps {
+  id?: string;
   title: string;
   image: string;
   badge?: "trending" | "sponsored" | "live" | "featured";
   aspectRatio?: "video" | "poster" | "square";
   onClick?: () => void;
+  showWatchlist?: boolean;
 }
 
 const badgeStyles = {
@@ -24,11 +27,13 @@ const badgeLabels = {
 };
 
 const ContentCard = ({
+  id,
   title,
   image,
   badge,
   aspectRatio = "video",
   onClick,
+  showWatchlist = true,
 }: ContentCardProps) => {
   const aspectClasses = {
     video: "aspect-video",
@@ -68,6 +73,13 @@ const ContentCard = ({
             <span className={`cinna-badge ${badgeStyles[badge]}`}>
               {badgeLabels[badge]}
             </span>
+          </div>
+        )}
+
+        {/* Watchlist Button */}
+        {showWatchlist && id && (
+          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+            <WatchlistButton contentId={id} size="sm" />
           </div>
         )}
 

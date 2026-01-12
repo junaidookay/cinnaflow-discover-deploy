@@ -16,6 +16,8 @@ import ArtistsPage from "./pages/ArtistsPage";
 import CreatorsPage from "./pages/CreatorsPage";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import Subscription from "./pages/Subscription";
+import MyList from "./pages/MyList";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminContent from "./pages/admin/AdminContent";
 import AdminArtists from "./pages/admin/AdminArtists";
@@ -39,6 +41,8 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/content/:id" element={<ContentDetail />} />
             <Route path="/promote" element={<Promote />} />
+            <Route path="/subscription" element={<Subscription />} />
+            <Route path="/my-list" element={<MyList />} />
             <Route path="/submit/artist" element={<SubmitArtist />} />
             <Route path="/submit/creator" element={<SubmitCreator />} />
             <Route path="/movies" element={<CategoryPage />} />

@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, Menu, X } from "lucide-react";
+import { Search, Menu, X, Crown, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import SearchDialog from "./SearchDialog";
 import UserMenu from "./UserMenu";
+import NotificationBell from "./NotificationBell";
+import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
+import { Badge } from "@/components/ui/badge";
 
 const navItems = [
   { name: "Home", href: "/" },
@@ -40,6 +44,29 @@ const Navbar = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  const { user } = useAuth();
+  const { currentTier, isPremium } = useSubscription();
+
+  const SubscriptionBadge = () => {
+    if (!user) return null;
+    
+    if (isPremium) {
+      return (
+        <Link to="/subscription" className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary/20 text-primary rounded-full text-xs font-medium hover:bg-primary/30 transition-colors">
+          <Crown className="w-3.5 h-3.5" />
+          {currentTier === 'pro' ? 'Pro' : 'Premium'}
+        </Link>
+      );
+    }
+    
+    return (
+      <Link to="/subscription" className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-secondary text-muted-foreground rounded-full text-xs font-medium hover:bg-secondary/80 hover:text-foreground transition-colors">
+        <Sparkles className="w-3.5 h-3.5" />
+        Upgrade
+      </Link>
+    );
+  };
 
   return (
     <>
@@ -86,6 +113,8 @@ const Navbar = () => {
                 </kbd>
               </button>
 
+              <SubscriptionBadge />
+              <NotificationBell />
               <UserMenu />
 
               {/* Mobile Menu Button */}

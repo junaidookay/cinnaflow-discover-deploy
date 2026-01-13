@@ -9,7 +9,8 @@ import {
   LogOut, 
   Settings,
   ChevronRight,
-  Server
+  Server,
+  Download
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -20,6 +21,7 @@ interface AdminLayoutProps {
 const navItems = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Content', href: '/admin/content', icon: Film },
+  { name: 'TMDB Import', href: '/admin/tmdb', icon: Download },
   { name: 'Artists', href: '/admin/artists', icon: Music },
   { name: 'Creators', href: '/admin/creators', icon: Users },
   { name: 'Plex Import', href: '/admin/plex', icon: Server },

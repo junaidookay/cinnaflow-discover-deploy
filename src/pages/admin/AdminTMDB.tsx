@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,8 @@ import {
   Video,
   CheckSquare,
   Square,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -50,6 +51,13 @@ interface TMDBResult {
 interface ExternalLink {
   source: string;
   url: string;
+}
+
+interface StreamingOffer {
+  provider: string;
+  providerId: number;
+  url: string;
+  monetizationType: string;
 }
 
 const genreMap: Record<number, string> = {
@@ -88,6 +96,11 @@ const AdminTMDB = () => {
   const [importItem, setImportItem] = useState<TMDBResult | null>(null);
   const [videoEmbedUrl, setVideoEmbedUrl] = useState('');
   const [externalLinks, setExternalLinks] = useState<ExternalLink[]>([]);
+  
+  // JustWatch lookup state
+  const [lookingUpStreams, setLookingUpStreams] = useState(false);
+  const [streamingOffers, setStreamingOffers] = useState<StreamingOffer[]>([]);
+  const [allOffers, setAllOffers] = useState<StreamingOffer[]>([]);
 
   const searchTMDB = async (action: string, query?: string) => {
     setLoading(true);
@@ -139,7 +152,56 @@ const AdminTMDB = () => {
     setImportItem(item);
     setVideoEmbedUrl('');
     setExternalLinks([]);
+    setStreamingOffers([]);
+    setAllOffers([]);
     setShowImportModal(true);
+  };
+
+  const lookupFreeStreams = async () => {
+    if (!importItem) return;
+    
+    setLookingUpStreams(true);
+    try {
+      const mediaType = importItem.media_type || (importItem.title ? 'movie' : 'tv');
+      const title = importItem.title || importItem.name || '';
+      const releaseDate = importItem.release_date || importItem.first_air_date;
+      const year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
+
+      const { data, error } = await supabase.functions.invoke('justwatch-lookup', {
+        body: { 
+          title,
+          year,
+          type: mediaType,
+          tmdb_id: importItem.id,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.found) {
+        setStreamingOffers(data.freeStreaming || []);
+        setAllOffers(data.allOffers || []);
+        
+        // Auto-populate external links from free streaming offers
+        if (data.freeStreaming && data.freeStreaming.length > 0) {
+          const autoLinks = data.freeStreaming.map((offer: StreamingOffer) => ({
+            source: offer.provider.toLowerCase().replace(/\s/g, ''),
+            url: offer.url,
+          }));
+          setExternalLinks(autoLinks);
+          toast.success(`Found ${data.freeStreaming.length} free streaming option(s)!`);
+        } else {
+          toast.info('No free streaming options found for this title');
+        }
+      } else {
+        toast.info('Title not found on JustWatch');
+      }
+    } catch (error: any) {
+      console.error('JustWatch lookup error:', error);
+      toast.error('Failed to lookup streaming: ' + error.message);
+    } finally {
+      setLookingUpStreams(false);
+    }
   };
 
   const addExternalLink = () => {
@@ -385,6 +447,75 @@ const AdminTMDB = () => {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* JustWatch Auto-Lookup */}
+            <div className="border border-primary/30 rounded-lg p-4 bg-primary/5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm">Find Free Streaming</span>
+                </div>
+                <Button 
+                  size="sm" 
+                  onClick={lookupFreeStreams}
+                  disabled={lookingUpStreams}
+                  className="gap-2"
+                >
+                  {lookingUpStreams ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4" />
+                      Auto-Lookup
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Search Tubi, Pluto TV, Peacock, Plex, and more for free streams
+              </p>
+              
+              {/* Show found streams */}
+              {streamingOffers.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <Label className="text-xs text-primary">Found free streams:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {streamingOffers.map((offer, idx) => (
+                      <a
+                        key={idx}
+                        href={offer.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs bg-primary/20 text-primary px-2 py-1 rounded hover:bg-primary/30 transition-colors"
+                      >
+                        {offer.provider}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Show all available platforms */}
+              {allOffers.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <Label className="text-xs text-muted-foreground">Also available on:</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {allOffers
+                      .filter(o => !streamingOffers.some(s => s.providerId === o.providerId))
+                      .slice(0, 8)
+                      .map((offer, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs">
+                          {offer.provider} ({offer.monetizationType.toLowerCase()})
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Video Embed URL */}
             <div className="space-y-2">
               <Label htmlFor="embed-url">Direct Video Embed URL (optional)</Label>
@@ -402,7 +533,7 @@ const AdminTMDB = () => {
             {/* External Watch Links */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>External Watch Links (optional)</Label>
+                <Label>External Watch Links {externalLinks.length > 0 && `(${externalLinks.length})`}</Label>
                 <Button variant="outline" size="sm" onClick={addExternalLink} className="gap-1">
                   <Plus className="w-3 h-3" />
                   Add Link
@@ -411,10 +542,10 @@ const AdminTMDB = () => {
               
               {externalLinks.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  Add links to free streaming sources like Tubi, Pluto TV, etc.
+                  Click "Auto-Lookup" above or add links manually
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-40 overflow-y-auto">
                   {externalLinks.map((link, index) => (
                     <div key={index} className="flex gap-2">
                       <select

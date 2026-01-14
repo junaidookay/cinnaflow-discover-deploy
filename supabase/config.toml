@@ -1,5 +1,8 @@
 project_id = "qsjisndjbjeoqwbairal"
 
+[functions.justwatch-lookup]
+verify_jwt = false
+
 [functions.plex-import]
 verify_jwt = false
 

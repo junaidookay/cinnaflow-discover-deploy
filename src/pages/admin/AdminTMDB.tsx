@@ -4,16 +4,30 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Search, 
-  Film, 
-  Tv, 
-  TrendingUp, 
-  Plus, 
-  Check, 
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Search,
+  Film,
+  Tv,
+  TrendingUp,
+  Plus,
+  Check,
   Loader2,
   Star,
-  Calendar
+  Calendar,
+  Link,
+  Video,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -33,6 +47,11 @@ interface TMDBResult {
   genre_ids?: number[];
 }
 
+interface ExternalLink {
+  source: string;
+  url: string;
+}
+
 const genreMap: Record<number, string> = {
   28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy',
   80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family',
@@ -44,6 +63,14 @@ const genreMap: Record<number, string> = {
   10767: 'Talk', 10768: 'War & Politics'
 };
 
+const STREAMING_SOURCES = [
+  { id: 'tubi', name: 'Tubi', placeholder: 'https://tubitv.com/movies/...' },
+  { id: 'pluto', name: 'Pluto TV', placeholder: 'https://pluto.tv/on-demand/movies/...' },
+  { id: 'plex', name: 'Plex', placeholder: 'https://watch.plex.tv/movie/...' },
+  { id: 'youtube', name: 'YouTube', placeholder: 'https://youtube.com/watch?v=...' },
+  { id: 'other', name: 'Other', placeholder: 'https://...' },
+];
+
 const AdminTMDB = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<TMDBResult[]>([]);
@@ -51,9 +78,20 @@ const AdminTMDB = () => {
   const [importing, setImporting] = useState<number | null>(null);
   const [imported, setImported] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState('search');
+  
+  // Bulk selection state
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [bulkImporting, setBulkImporting] = useState(false);
+  
+  // Import modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importItem, setImportItem] = useState<TMDBResult | null>(null);
+  const [videoEmbedUrl, setVideoEmbedUrl] = useState('');
+  const [externalLinks, setExternalLinks] = useState<ExternalLink[]>([]);
 
   const searchTMDB = async (action: string, query?: string) => {
     setLoading(true);
+    setSelectedItems(new Set()); // Clear selection on new search
     try {
       const { data, error } = await supabase.functions.invoke('tmdb-search', {
         body: { action, query }
@@ -76,32 +114,101 @@ const AdminTMDB = () => {
     }
   };
 
-  const importContent = async (item: TMDBResult) => {
+  const toggleSelection = (id: number) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    const unimportedIds = results.filter(r => !imported.has(r.id)).map(r => r.id);
+    setSelectedItems(new Set(unimportedIds));
+  };
+
+  const deselectAll = () => {
+    setSelectedItems(new Set());
+  };
+
+  const openImportModal = (item: TMDBResult) => {
+    setImportItem(item);
+    setVideoEmbedUrl('');
+    setExternalLinks([]);
+    setShowImportModal(true);
+  };
+
+  const addExternalLink = () => {
+    setExternalLinks([...externalLinks, { source: 'tubi', url: '' }]);
+  };
+
+  const updateExternalLink = (index: number, field: 'source' | 'url', value: string) => {
+    const updated = [...externalLinks];
+    updated[index][field] = value;
+    setExternalLinks(updated);
+  };
+
+  const removeExternalLink = (index: number) => {
+    setExternalLinks(externalLinks.filter((_, i) => i !== index));
+  };
+
+  const importContent = async (item: TMDBResult, embedUrl?: string, links?: ExternalLink[]) => {
+    const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
+    const contentType = mediaType === 'movie' ? 'movie' : 'tv';
+    const title = item.title || item.name || 'Untitled';
+    
+    // Map genre IDs to tags
+    const tags = item.genre_ids?.map(id => genreMap[id]).filter(Boolean) || [];
+
+    // Format external links as JSON
+    const formattedLinks = links?.filter(l => l.url.trim())?.map(l => ({
+      source: l.source,
+      url: l.url.trim()
+    })) || null;
+
+    const { error } = await supabase
+      .from('content_items')
+      .insert({
+        title,
+        description: item.overview || null,
+        content_type: contentType,
+        poster_url: item.poster_url,
+        thumbnail_url: item.thumbnail_url,
+        tags,
+        is_published: false,
+        video_embed_url: embedUrl?.trim() || null,
+        external_watch_links: formattedLinks && formattedLinks.length > 0 ? formattedLinks : null,
+      });
+
+    if (error) throw error;
+    return title;
+  };
+
+  const handleSingleImport = async () => {
+    if (!importItem) return;
+    
+    setImporting(importItem.id);
+    try {
+      const title = await importContent(importItem, videoEmbedUrl, externalLinks);
+      setImported(prev => new Set([...prev, importItem.id]));
+      toast.success(`Imported "${title}" as draft`);
+      setShowImportModal(false);
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast.error('Failed to import: ' + error.message);
+    } finally {
+      setImporting(null);
+    }
+  };
+
+  const handleQuickImport = async (item: TMDBResult) => {
     setImporting(item.id);
     try {
-      const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
-      const contentType = mediaType === 'movie' ? 'movie' : 'tv';
-      const title = item.title || item.name || 'Untitled';
-      const releaseDate = item.release_date || item.first_air_date;
-      
-      // Map genre IDs to tags
-      const tags = item.genre_ids?.map(id => genreMap[id]).filter(Boolean) || [];
-
-      const { error } = await supabase
-        .from('content_items')
-        .insert({
-          title,
-          description: item.overview || null,
-          content_type: contentType,
-          poster_url: item.poster_url,
-          thumbnail_url: item.thumbnail_url,
-          tags,
-          is_published: false, // Import as draft
-          external_watch_links: null,
-        });
-
-      if (error) throw error;
-
+      const title = await importContent(item);
       setImported(prev => new Set([...prev, item.id]));
       toast.success(`Imported "${title}" as draft`);
     } catch (error: any) {
@@ -112,9 +219,41 @@ const AdminTMDB = () => {
     }
   };
 
+  const handleBulkImport = async () => {
+    if (selectedItems.size === 0) return;
+    
+    setBulkImporting(true);
+    const itemsToImport = results.filter(r => selectedItems.has(r.id) && !imported.has(r.id));
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const item of itemsToImport) {
+      try {
+        await importContent(item);
+        setImported(prev => new Set([...prev, item.id]));
+        successCount++;
+      } catch (error) {
+        console.error('Bulk import error for', item.title || item.name, error);
+        failCount++;
+      }
+    }
+
+    setSelectedItems(new Set());
+    setBulkImporting(false);
+    
+    if (failCount === 0) {
+      toast.success(`Successfully imported ${successCount} items as drafts`);
+    } else {
+      toast.warning(`Imported ${successCount} items, ${failCount} failed`);
+    }
+  };
+
   const loadTrending = () => searchTMDB('trending');
   const loadPopularMovies = () => searchTMDB('popular_movies');
   const loadPopularTV = () => searchTMDB('popular_tv');
+
+  const selectedCount = selectedItems.size;
+  const allSelected = results.length > 0 && results.filter(r => !imported.has(r.id)).every(r => selectedItems.has(r.id));
 
   return (
     <AdminLayout title="TMDB Import">
@@ -135,6 +274,53 @@ const AdminTMDB = () => {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
           </Button>
         </form>
+
+        {/* Bulk Actions Bar */}
+        {results.length > 0 && (
+          <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={allSelected ? deselectAll : selectAll}
+                className="gap-2"
+              >
+                {allSelected ? (
+                  <CheckSquare className="w-4 h-4" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {allSelected ? 'Deselect All' : 'Select All'}
+              </Button>
+              
+              {selectedCount > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {selectedCount} item{selectedCount !== 1 ? 's' : ''} selected
+                </span>
+              )}
+            </div>
+
+            {selectedCount > 0 && (
+              <Button
+                onClick={handleBulkImport}
+                disabled={bulkImporting}
+                className="gap-2"
+              >
+                {bulkImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Import {selectedCount} Item{selectedCount !== 1 ? 's' : ''}
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Quick Actions */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -174,9 +360,12 @@ const AdminTMDB = () => {
                   <ContentCard 
                     key={item.id} 
                     item={item}
-                    onImport={() => importContent(item)}
+                    onQuickImport={() => handleQuickImport(item)}
+                    onImportWithOptions={() => openImportModal(item)}
                     isImporting={importing === item.id}
                     isImported={imported.has(item.id)}
+                    isSelected={selectedItems.has(item.id)}
+                    onToggleSelect={() => toggleSelection(item.id)}
                   />
                 ))}
               </div>
@@ -184,25 +373,147 @@ const AdminTMDB = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Import Modal with Video URL Options */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Video className="w-5 h-5" />
+              Import "{importItem?.title || importItem?.name}"
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Video Embed URL */}
+            <div className="space-y-2">
+              <Label htmlFor="embed-url">Direct Video Embed URL (optional)</Label>
+              <Input
+                id="embed-url"
+                placeholder="https://www.youtube.com/embed/... or iframe source"
+                value={videoEmbedUrl}
+                onChange={(e) => setVideoEmbedUrl(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                For embedded players (YouTube, Vimeo, etc.)
+              </p>
+            </div>
+
+            {/* External Watch Links */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>External Watch Links (optional)</Label>
+                <Button variant="outline" size="sm" onClick={addExternalLink} className="gap-1">
+                  <Plus className="w-3 h-3" />
+                  Add Link
+                </Button>
+              </div>
+              
+              {externalLinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Add links to free streaming sources like Tubi, Pluto TV, etc.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {externalLinks.map((link, index) => (
+                    <div key={index} className="flex gap-2">
+                      <select
+                        value={link.source}
+                        onChange={(e) => updateExternalLink(index, 'source', e.target.value)}
+                        className="w-32 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      >
+                        {STREAMING_SOURCES.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <Input
+                        placeholder={STREAMING_SOURCES.find(s => s.id === link.source)?.placeholder}
+                        value={link.url}
+                        onChange={(e) => updateExternalLink(index, 'url', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeExternalLink(index)}
+                        className="shrink-0"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Future: Real-Debrid integration placeholder */}
+            <div className="border border-dashed border-border rounded-lg p-4 bg-secondary/30">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Link className="w-4 h-4" />
+                <span>Real-Debrid integration coming soon</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Auto-fetch streaming links from magnet sources
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowImportModal(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSingleImport} 
+              disabled={importing === importItem?.id}
+              className="gap-2"
+            >
+              {importing === importItem?.id ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  Import as Draft
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
 
 interface ContentCardProps {
   item: TMDBResult;
-  onImport: () => void;
+  onQuickImport: () => void;
+  onImportWithOptions: () => void;
   isImporting: boolean;
   isImported: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }
 
-const ContentCard = ({ item, onImport, isImporting, isImported }: ContentCardProps) => {
+const ContentCard = ({ 
+  item, 
+  onQuickImport, 
+  onImportWithOptions,
+  isImporting, 
+  isImported,
+  isSelected,
+  onToggleSelect 
+}: ContentCardProps) => {
   const title = item.title || item.name || 'Untitled';
   const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
   const releaseDate = item.release_date || item.first_air_date;
   const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden group">
+    <div className={`bg-card border rounded-xl overflow-hidden group transition-colors ${
+      isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+    }`}>
       {/* Poster */}
       <div className="aspect-[2/3] bg-secondary relative">
         {item.poster_url ? (
@@ -221,10 +532,21 @@ const ContentCard = ({ item, onImport, isImporting, isImported }: ContentCardPro
           </div>
         )}
         
+        {/* Selection Checkbox */}
+        {!isImported && (
+          <div className="absolute top-2 left-2 z-10">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onToggleSelect}
+              className="bg-background/80 backdrop-blur-sm"
+            />
+          </div>
+        )}
+
         {/* Type Badge */}
         <Badge 
           variant="secondary" 
-          className="absolute top-2 left-2 text-xs"
+          className="absolute top-2 left-8 text-xs"
         >
           {mediaType === 'movie' ? 'Movie' : 'TV'}
         </Badge>
@@ -238,30 +560,34 @@ const ContentCard = ({ item, onImport, isImporting, isImported }: ContentCardPro
         )}
 
         {/* Import Button Overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <Button
-            size="sm"
-            onClick={onImport}
-            disabled={isImporting || isImported}
-            className="gap-2"
-          >
-            {isImported ? (
-              <>
-                <Check className="w-4 h-4" />
-                Imported
-              </>
-            ) : isImporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Importing...
-              </>
-            ) : (
-              <>
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
+          {isImported ? (
+            <Badge variant="secondary" className="gap-1">
+              <Check className="w-3 h-3" />
+              Imported
+            </Badge>
+          ) : isImporting ? (
+            <Button size="sm" disabled className="gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Importing...
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" onClick={onQuickImport} className="gap-2 w-full">
                 <Plus className="w-4 h-4" />
-                Import
-              </>
-            )}
-          </Button>
+                Quick Import
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={onImportWithOptions}
+                className="gap-2 w-full"
+              >
+                <Video className="w-4 h-4" />
+                Add Video URLs
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

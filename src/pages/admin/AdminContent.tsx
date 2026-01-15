@@ -1,12 +1,26 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Edit, Trash2, Eye, EyeOff, Star } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, EyeOff, Star, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import ContentFormModal from '@/components/admin/ContentFormModal';
 import { Database } from '@/integrations/supabase/types';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
+
+interface StreamingOffer {
+  provider: string;
+  providerId: number;
+  url: string;
+  monetizationType: string;
+}
 
 const AdminContent = () => {
   const [content, setContent] = useState<ContentItem[]>([]);
@@ -14,6 +28,15 @@ const AdminContent = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
   const [filter, setFilter] = useState<string>('all');
+  
+  // Refresh streams state
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [showRefreshModal, setShowRefreshModal] = useState(false);
+  const [refreshResults, setRefreshResults] = useState<{
+    item: ContentItem;
+    freeStreaming: StreamingOffer[];
+    allOffers: StreamingOffer[];
+  } | null>(null);
 
   const fetchContent = async () => {
     setIsLoading(true);
@@ -82,6 +105,80 @@ const AdminContent = () => {
       toast.success(`Badge ${hasBadge ? 'removed' : 'added'}`);
       fetchContent();
     }
+  };
+
+  const refreshStreams = async (item: ContentItem) => {
+    setRefreshingId(item.id);
+    
+    try {
+      // Extract year from title if possible (e.g., "Movie Title (2023)")
+      const yearMatch = item.title.match(/\((\d{4})\)/);
+      const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
+      const cleanTitle = item.title.replace(/\s*\(\d{4}\)\s*$/, '').trim();
+
+      const { data, error } = await supabase.functions.invoke('justwatch-lookup', {
+        body: {
+          title: cleanTitle,
+          year,
+          type: item.content_type === 'tv' ? 'tv' : 'movie',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.found && data.freeStreaming?.length > 0) {
+        setRefreshResults({
+          item,
+          freeStreaming: data.freeStreaming,
+          allOffers: data.allOffers || [],
+        });
+        setShowRefreshModal(true);
+      } else {
+        toast.info(`No free streaming options found for "${item.title}"`);
+      }
+    } catch (err) {
+      console.error('Refresh streams error:', err);
+      toast.error('Failed to check streaming availability');
+    } finally {
+      setRefreshingId(null);
+    }
+  };
+
+  const applyRefreshedStreams = async () => {
+    if (!refreshResults) return;
+
+    const { item, freeStreaming } = refreshResults;
+    
+    // Build external watch links from found streams
+    const newLinks: Record<string, string> = {};
+    freeStreaming.forEach(offer => {
+      const key = offer.provider.toLowerCase().replace(/\s+/g, '_');
+      newLinks[key] = offer.url;
+    });
+
+    // Merge with existing links
+    const existingLinks = (item.external_watch_links as Record<string, string>) || {};
+    const mergedLinks = { ...existingLinks, ...newLinks };
+
+    const { error } = await supabase
+      .from('content_items')
+      .update({ external_watch_links: mergedLinks })
+      .eq('id', item.id);
+
+    if (error) {
+      toast.error('Failed to update streaming links');
+    } else {
+      toast.success(`Updated ${Object.keys(newLinks).length} streaming links`);
+      fetchContent();
+    }
+
+    setShowRefreshModal(false);
+    setRefreshResults(null);
+  };
+
+  const hasExternalLinks = (item: ContentItem) => {
+    const links = item.external_watch_links as Record<string, string> | null;
+    return links && Object.keys(links).length > 0;
   };
 
   return (
@@ -164,11 +261,19 @@ const AdminContent = () => {
                     </span>
                   ))}
                 </div>
-                {!item.is_published && (
-                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-yellow-500/80 text-black text-xs rounded">
-                    Draft
-                  </div>
-                )}
+                <div className="absolute top-2 left-2 flex gap-1">
+                  {!item.is_published && (
+                    <span className="px-2 py-0.5 bg-yellow-500/80 text-black text-xs rounded">
+                      Draft
+                    </span>
+                  )}
+                  {hasExternalLinks(item) && (
+                    <span className="px-2 py-0.5 bg-green-500/80 text-white text-xs rounded flex items-center gap-1">
+                      <ExternalLink className="w-3 h-3" />
+                      Streams
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div className="p-4">
@@ -198,6 +303,19 @@ const AdminContent = () => {
                     title="Toggle Trending"
                   >
                     <Star className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={() => refreshStreams(item)}
+                    disabled={refreshingId === item.id}
+                    className="p-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors disabled:opacity-50"
+                    title="Refresh Streams"
+                  >
+                    {refreshingId === item.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
                   </button>
                   
                   <button
@@ -239,6 +357,79 @@ const AdminContent = () => {
           }}
         />
       )}
+
+      {/* Refresh Streams Results Modal */}
+      <Dialog open={showRefreshModal} onOpenChange={setShowRefreshModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Streaming Options Found</DialogTitle>
+          </DialogHeader>
+          
+          {refreshResults && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Found {refreshResults.freeStreaming.length} free streaming option(s) for "{refreshResults.item.title}"
+              </p>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-foreground">Free Streams</h4>
+                {refreshResults.freeStreaming.map((offer, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{offer.provider}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{offer.monetizationType}</p>
+                    </div>
+                    <a
+                      href={offer.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline text-sm"
+                    >
+                      View
+                    </a>
+                  </div>
+                ))}
+              </div>
+
+              {refreshResults.allOffers.length > refreshResults.freeStreaming.length && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-muted-foreground">Other Options</h4>
+                  <div className="max-h-32 overflow-y-auto space-y-1">
+                    {refreshResults.allOffers
+                      .filter(o => !refreshResults.freeStreaming.find(f => f.providerId === o.providerId))
+                      .slice(0, 5)
+                      .map((offer, idx) => (
+                        <div key={idx} className="flex items-center justify-between py-1 text-sm text-muted-foreground">
+                          <span>{offer.provider}</span>
+                          <span className="capitalize text-xs">{offer.monetizationType}</span>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={applyRefreshedStreams}
+                  className="flex-1"
+                >
+                  Apply Free Streams
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRefreshModal(false);
+                    setRefreshResults(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

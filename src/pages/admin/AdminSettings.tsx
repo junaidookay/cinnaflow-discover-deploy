@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Key, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { CreditCard, Key, Eye, EyeOff, CheckCircle, AlertCircle, HardDrive, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const AdminSettings = () => {
   const { user } = useAuth();
@@ -13,15 +14,75 @@ const AdminSettings = () => {
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [isStripeConfigured, setIsStripeConfigured] = useState(false);
+  
+  // Real-Debrid state
+  const [debridStatus, setDebridStatus] = useState<{
+    configured: boolean;
+    premium?: boolean;
+    expiration?: string;
+    username?: string;
+    checking: boolean;
+    error?: string;
+  }>({ configured: false, checking: true });
+
+  useEffect(() => {
+    checkDebridStatus();
+  }, []);
+
+  const checkDebridStatus = async () => {
+    setDebridStatus(prev => ({ ...prev, checking: true, error: undefined }));
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('real-debrid', {
+        body: { action: 'check_status' },
+      });
+
+      if (error) throw error;
+
+      if (data.configured) {
+        setDebridStatus({
+          configured: true,
+          premium: data.premium,
+          expiration: data.expiration,
+          username: data.username,
+          checking: false,
+        });
+      } else {
+        setDebridStatus({
+          configured: false,
+          checking: false,
+          error: data.error,
+        });
+      }
+    } catch (err) {
+      console.error('Debrid status check error:', err);
+      setDebridStatus({
+        configured: false,
+        checking: false,
+        error: 'Failed to check Real-Debrid status',
+      });
+    }
+  };
 
   const handleSaveStripeKeys = () => {
     if (!stripeSecretKey || !stripePublishableKey) {
       toast.error('Please enter both Stripe keys');
       return;
     }
-    // For now, just show success - actual integration will be done when keys are provided
     toast.success('Stripe keys saved! Integration will be activated when backend is configured.');
     setIsStripeConfigured(true);
+  };
+
+  const formatExpirationDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
   };
 
   return (
@@ -42,6 +103,107 @@ const AdminSettings = () => {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Real-Debrid Integration Section */}
+        <div className="bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-green-500/10 rounded-lg">
+              <HardDrive className="w-5 h-5 text-green-500" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-semibold text-foreground">Real-Debrid Integration</h2>
+              <p className="text-sm text-muted-foreground">Convert magnet links to streaming URLs</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={checkDebridStatus}
+              disabled={debridStatus.checking}
+            >
+              {debridStatus.checking ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+
+          {debridStatus.checking ? (
+            <div className="flex items-center gap-2 p-4 bg-secondary/50 border border-border rounded-lg">
+              <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" />
+              <span className="text-sm text-muted-foreground">Checking Real-Debrid status...</span>
+            </div>
+          ) : debridStatus.configured ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="text-sm text-green-400">Real-Debrid connected and active</span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/50 rounded-lg">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Account</p>
+                  <p className="text-sm font-medium text-foreground">{debridStatus.username}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <span className={`inline-flex px-2 py-0.5 text-xs rounded ${
+                    debridStatus.premium 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {debridStatus.premium ? 'Premium' : 'Free'}
+                  </span>
+                </div>
+                {debridStatus.expiration && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1">Premium Expires</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {formatExpirationDate(debridStatus.expiration)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 bg-secondary/50 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Supported Features</h4>
+                <ul className="space-y-1 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    Magnet link to streaming URL conversion
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    Cached torrent instant streaming
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    Multi-file support with selection
+                  </li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-yellow-500" />
+                <span className="text-sm text-yellow-400">
+                  {debridStatus.error || 'Real-Debrid not configured'}
+                </span>
+              </div>
+
+              <div className="p-4 bg-secondary/50 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Setup Instructions</h4>
+                <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+                  <li>Get a Real-Debrid account at <span className="text-primary">real-debrid.com</span></li>
+                  <li>Generate an API key from your account settings</li>
+                  <li>Add the API key as REAL_DEBRID_API_KEY in your backend secrets</li>
+                  <li>Click refresh to verify the connection</li>
+                </ol>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Stripe Integration Section */}

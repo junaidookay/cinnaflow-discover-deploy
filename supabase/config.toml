@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.tmdb-search]
 verify_jwt = false
+
+[functions.real-debrid]
+verify_jwt = false

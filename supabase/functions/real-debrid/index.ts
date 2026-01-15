@@ -107,10 +107,99 @@ serve(async (req) => {
           body: 'files=all',
         });
 
+        // Wait a moment for processing
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Check status
+        const infoResponse = await fetch(`${REAL_DEBRID_API}/torrents/info/${addData.id}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+
+        const torrentInfo: TorrentInfo = await infoResponse.json();
+
+        // If downloaded, get the streaming URL
+        if (torrentInfo.status === 'downloaded' && torrentInfo.links?.length > 0) {
+          // Find the largest video file
+          const videoLink = torrentInfo.links[0];
+          
+          const unrestrictResponse = await fetch(`${REAL_DEBRID_API}/unrestrict/link`, {
+            method: 'POST',
+            headers,
+            body: `link=${encodeURIComponent(videoLink)}`,
+          });
+
+          if (unrestrictResponse.ok) {
+            const unrestrictData: UnrestrictedLink = await unrestrictResponse.json();
+            return new Response(JSON.stringify({
+              success: true,
+              status: 'ready',
+              streamUrl: unrestrictData.download,
+              filename: unrestrictData.filename,
+              id: addData.id,
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
         return new Response(JSON.stringify({
           success: true,
-          torrent_id: addData.id,
-          uri: addData.uri,
+          status: torrentInfo.status,
+          progress: torrentInfo.progress,
+          id: addData.id,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      case 'select_files': {
+        const { torrentId } = await req.json();
+        if (!torrentId) {
+          throw new Error('Torrent ID is required');
+        }
+
+        // Select all files
+        await fetch(`${REAL_DEBRID_API}/torrents/selectFiles/${torrentId}`, {
+          method: 'POST',
+          headers,
+          body: 'files=all',
+        });
+
+        // Wait and check status
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        const infoResponse = await fetch(`${REAL_DEBRID_API}/torrents/info/${torrentId}`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+
+        const torrentInfo: TorrentInfo = await infoResponse.json();
+
+        if (torrentInfo.status === 'downloaded' && torrentInfo.links?.length > 0) {
+          const videoLink = torrentInfo.links[0];
+          
+          const unrestrictResponse = await fetch(`${REAL_DEBRID_API}/unrestrict/link`, {
+            method: 'POST',
+            headers,
+            body: `link=${encodeURIComponent(videoLink)}`,
+          });
+
+          if (unrestrictResponse.ok) {
+            const unrestrictData: UnrestrictedLink = await unrestrictResponse.json();
+            return new Response(JSON.stringify({
+              success: true,
+              status: 'ready',
+              streamUrl: unrestrictData.download,
+              filename: unrestrictData.filename,
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          status: torrentInfo.status,
+          progress: torrentInfo.progress,
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Magnet, Loader2, Link } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Database } from '@/integrations/supabase/types';
+import { Button } from '@/components/ui/button';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
 type ContentType = Database['public']['Enums']['content_type'];
@@ -28,8 +29,75 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
     section_assignments: item?.section_assignments || [],
     hero_order: item?.hero_order || null,
     is_published: item?.is_published || false,
+    external_watch_links: item?.external_watch_links as Record<string, string> || {},
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [magnetLink, setMagnetLink] = useState('');
+  const [isResolvingMagnet, setIsResolvingMagnet] = useState(false);
+
+  const resolveMagnetLink = async () => {
+    if (!magnetLink.trim()) {
+      toast.error('Please enter a magnet link');
+      return;
+    }
+
+    if (!magnetLink.startsWith('magnet:')) {
+      toast.error('Invalid magnet link format');
+      return;
+    }
+
+    setIsResolvingMagnet(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('real-debrid', {
+        body: {
+          action: 'add_magnet',
+          magnet: magnetLink.trim(),
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      if (data.streamUrl) {
+        setFormData({
+          ...formData,
+          video_embed_url: data.streamUrl,
+        });
+        setMagnetLink('');
+        toast.success('Magnet resolved! Streaming URL added.');
+      } else if (data.status === 'downloading') {
+        toast.info(`File is downloading (${data.progress}%). Try again shortly.`);
+      } else if (data.status === 'waiting_files_selection') {
+        toast.info('Torrent added. Selecting files...');
+        // Try to select files automatically
+        const selectRes = await supabase.functions.invoke('real-debrid', {
+          body: {
+            action: 'select_files',
+            torrentId: data.id,
+          },
+        });
+        if (selectRes.data?.streamUrl) {
+          setFormData({
+            ...formData,
+            video_embed_url: selectRes.data.streamUrl,
+          });
+          setMagnetLink('');
+          toast.success('Magnet resolved! Streaming URL added.');
+        }
+      } else {
+        toast.info(`Status: ${data.status || 'Processing...'}`);
+      }
+    } catch (err: any) {
+      console.error('Magnet resolve error:', err);
+      toast.error(err.message || 'Failed to resolve magnet link');
+    } finally {
+      setIsResolvingMagnet(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +115,9 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
       section_assignments: formData.section_assignments as SectionType[],
       hero_order: formData.hero_order,
       is_published: formData.is_published,
+      external_watch_links: Object.keys(formData.external_watch_links).length > 0 
+        ? formData.external_watch_links 
+        : null,
     };
 
     try {
@@ -196,6 +267,69 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
               placeholder="https://www.youtube.com/embed/..."
             />
           </div>
+
+          {/* Magnet Link Resolution */}
+          <div className="p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <Magnet className="w-4 h-4 text-primary" />
+              <label className="text-sm font-medium text-foreground">
+                Resolve Magnet Link (Real-Debrid)
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={magnetLink}
+                onChange={(e) => setMagnetLink(e.target.value)}
+                className="flex-1 px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                placeholder="magnet:?xt=urn:btih:..."
+              />
+              <Button
+                type="button"
+                onClick={resolveMagnetLink}
+                disabled={isResolvingMagnet || !magnetLink.trim()}
+                className="shrink-0"
+              >
+                {isResolvingMagnet ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Link className="w-4 h-4 mr-2" />
+                    Resolve
+                  </>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Paste a magnet link to convert it to a direct streaming URL via Real-Debrid
+            </p>
+          </div>
+
+          {/* External Watch Links Display */}
+          {Object.keys(formData.external_watch_links).length > 0 && (
+            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                External Watch Links
+              </label>
+              <div className="space-y-1">
+                {Object.entries(formData.external_watch_links).map(([provider, url]) => (
+                  <div key={provider} className="flex items-center justify-between text-sm">
+                    <span className="capitalize text-muted-foreground">
+                      {provider.replace(/_/g, ' ')}
+                    </span>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline truncate max-w-xs"
+                    >
+                      {url.slice(0, 40)}...
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">

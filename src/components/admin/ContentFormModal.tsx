@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { X, Magnet, Loader2, Link } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Magnet, Loader2, Link, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
 type ContentType = Database['public']['Enums']['content_type'];
@@ -14,6 +15,13 @@ interface ContentFormModalProps {
   item: ContentItem | null;
   onClose: () => void;
   onSave: () => void;
+}
+
+interface MagnetProgress {
+  status: string;
+  progress: number;
+  torrentId: string | null;
+  filename?: string;
 }
 
 const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
@@ -34,6 +42,69 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [magnetLink, setMagnetLink] = useState('');
   const [isResolvingMagnet, setIsResolvingMagnet] = useState(false);
+  const [magnetProgress, setMagnetProgress] = useState<MagnetProgress | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // External link editor state
+  const [newProviderName, setNewProviderName] = useState('');
+  const [newProviderUrl, setNewProviderUrl] = useState('');
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const pollTorrentStatus = async (torrentId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('real-debrid', {
+        body: {
+          action: 'check_torrent',
+          torrent_id: torrentId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.status === 'downloaded' && data.links?.length > 0) {
+        // Torrent is ready, get stream URL
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        
+        const { data: unrestrictData } = await supabase.functions.invoke('real-debrid', {
+          body: {
+            action: 'unrestrict',
+            link: data.links[0],
+          },
+        });
+
+        if (unrestrictData?.download) {
+          setFormData(prev => ({
+            ...prev,
+            video_embed_url: unrestrictData.download,
+          }));
+          setMagnetLink('');
+          setMagnetProgress(null);
+          setIsResolvingMagnet(false);
+          toast.success('Magnet resolved! Streaming URL added.');
+        }
+      } else {
+        setMagnetProgress({
+          status: data.status || 'processing',
+          progress: data.progress || 0,
+          torrentId: torrentId,
+          filename: data.filename,
+        });
+      }
+    } catch (err) {
+      console.error('Poll error:', err);
+    }
+  };
 
   const resolveMagnetLink = async () => {
     if (!magnetLink.trim()) {
@@ -47,6 +118,8 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
     }
 
     setIsResolvingMagnet(true);
+    setMagnetProgress({ status: 'adding', progress: 0, torrentId: null });
+    
     try {
       const { data, error } = await supabase.functions.invoke('real-debrid', {
         body: {
@@ -59,6 +132,8 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
 
       if (data.error) {
         toast.error(data.error);
+        setMagnetProgress(null);
+        setIsResolvingMagnet(false);
         return;
       }
 
@@ -68,35 +143,79 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
           video_embed_url: data.streamUrl,
         });
         setMagnetLink('');
+        setMagnetProgress(null);
+        setIsResolvingMagnet(false);
         toast.success('Magnet resolved! Streaming URL added.');
-      } else if (data.status === 'downloading') {
-        toast.info(`File is downloading (${data.progress}%). Try again shortly.`);
-      } else if (data.status === 'waiting_files_selection') {
-        toast.info('Torrent added. Selecting files...');
-        // Try to select files automatically
-        const selectRes = await supabase.functions.invoke('real-debrid', {
-          body: {
-            action: 'select_files',
-            torrentId: data.id,
-          },
+      } else if (data.id) {
+        // Start polling for progress
+        setMagnetProgress({
+          status: data.status || 'processing',
+          progress: data.progress || 0,
+          torrentId: data.id,
         });
-        if (selectRes.data?.streamUrl) {
-          setFormData({
-            ...formData,
-            video_embed_url: selectRes.data.streamUrl,
-          });
-          setMagnetLink('');
-          toast.success('Magnet resolved! Streaming URL added.');
-        }
+        
+        pollIntervalRef.current = setInterval(() => {
+          pollTorrentStatus(data.id);
+        }, 3000);
+        
+        toast.info('Torrent added. Monitoring download progress...');
       } else {
+        setMagnetProgress(null);
+        setIsResolvingMagnet(false);
         toast.info(`Status: ${data.status || 'Processing...'}`);
       }
     } catch (err: any) {
       console.error('Magnet resolve error:', err);
       toast.error(err.message || 'Failed to resolve magnet link');
-    } finally {
+      setMagnetProgress(null);
       setIsResolvingMagnet(false);
     }
+  };
+
+  const cancelMagnetPolling = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setMagnetProgress(null);
+    setIsResolvingMagnet(false);
+  };
+
+  const addExternalLink = () => {
+    if (!newProviderName.trim() || !newProviderUrl.trim()) {
+      toast.error('Please enter both provider name and URL');
+      return;
+    }
+
+    const key = newProviderName.toLowerCase().replace(/\s+/g, '_');
+    setFormData({
+      ...formData,
+      external_watch_links: {
+        ...formData.external_watch_links,
+        [key]: newProviderUrl.trim(),
+      },
+    });
+    setNewProviderName('');
+    setNewProviderUrl('');
+    toast.success('External link added');
+  };
+
+  const removeExternalLink = (key: string) => {
+    const { [key]: _, ...rest } = formData.external_watch_links;
+    setFormData({
+      ...formData,
+      external_watch_links: rest,
+    });
+  };
+
+  const updateExternalLink = (key: string, newUrl: string) => {
+    setFormData({
+      ...formData,
+      external_watch_links: {
+        ...formData.external_watch_links,
+        [key]: newUrl,
+      },
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -283,6 +402,7 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
                 onChange={(e) => setMagnetLink(e.target.value)}
                 className="flex-1 px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                 placeholder="magnet:?xt=urn:btih:..."
+                disabled={isResolvingMagnet}
               />
               <Button
                 type="button"
@@ -300,36 +420,104 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
                 )}
               </Button>
             </div>
+            
+            {/* Progress Indicator */}
+            {magnetProgress && (
+              <div className="space-y-2 p-3 bg-background/50 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground capitalize">
+                    {magnetProgress.status.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-foreground font-medium">
+                    {magnetProgress.progress}%
+                  </span>
+                </div>
+                <Progress value={magnetProgress.progress} className="h-2" />
+                {magnetProgress.filename && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {magnetProgress.filename}
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={cancelMagnetPolling}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+            
             <p className="text-xs text-muted-foreground">
               Paste a magnet link to convert it to a direct streaming URL via Real-Debrid
             </p>
           </div>
 
-          {/* External Watch Links Display */}
-          {Object.keys(formData.external_watch_links).length > 0 && (
-            <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                External Watch Links
-              </label>
-              <div className="space-y-1">
+          {/* External Watch Links Editor */}
+          <div className="p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
+            <label className="text-sm font-medium text-foreground">
+              External Watch Links
+            </label>
+            
+            {/* Existing links */}
+            {Object.entries(formData.external_watch_links).length > 0 && (
+              <div className="space-y-2">
                 {Object.entries(formData.external_watch_links).map(([provider, url]) => (
-                  <div key={provider} className="flex items-center justify-between text-sm">
-                    <span className="capitalize text-muted-foreground">
+                  <div key={provider} className="flex items-center gap-2">
+                    <span className="w-24 text-sm text-muted-foreground capitalize truncate">
                       {provider.replace(/_/g, ' ')}
                     </span>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline truncate max-w-xs"
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={(e) => updateExternalLink(provider, e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-secondary border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeExternalLink(provider)}
+                      className="text-destructive hover:text-destructive"
                     >
-                      {url.slice(0, 40)}...
-                    </a>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 ))}
               </div>
+            )}
+            
+            {/* Add new link */}
+            <div className="flex items-center gap-2 pt-2 border-t border-border">
+              <input
+                type="text"
+                value={newProviderName}
+                onChange={(e) => setNewProviderName(e.target.value)}
+                className="w-24 px-3 py-1.5 bg-secondary border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Provider"
+              />
+              <input
+                type="url"
+                value={newProviderUrl}
+                onChange={(e) => setNewProviderUrl(e.target.value)}
+                className="flex-1 px-3 py-1.5 bg-secondary border border-border rounded-lg text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="https://..."
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={addExternalLink}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
             </div>
-          )}
+            <p className="text-xs text-muted-foreground">
+              Add streaming sources like Tubi, Pluto TV, Peacock, etc.
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-2">

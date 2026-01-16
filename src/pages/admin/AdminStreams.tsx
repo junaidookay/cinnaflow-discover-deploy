@@ -11,7 +11,9 @@ import {
   Film,
   Tv,
   Trophy,
-  Video
+  Video,
+  Clock,
+  Settings
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
 
@@ -53,7 +62,81 @@ const AdminStreams = () => {
     success: boolean;
   }>>([]);
   const [filter, setFilter] = useState<'all' | 'with-streams' | 'no-streams'>('all');
+  
+  // Scheduled refresh settings
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleInterval, setScheduleInterval] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [lastScheduledRun, setLastScheduledRun] = useState<string | null>(null);
+  const [showScheduleSettings, setShowScheduleSettings] = useState(false);
 
+  // Load schedule settings from localStorage
+  useEffect(() => {
+    const savedEnabled = localStorage.getItem('streamRefreshEnabled');
+    const savedInterval = localStorage.getItem('streamRefreshInterval');
+    const savedLastRun = localStorage.getItem('streamRefreshLastRun');
+    
+    if (savedEnabled) setScheduleEnabled(savedEnabled === 'true');
+    if (savedInterval) setScheduleInterval(savedInterval as 'daily' | 'weekly' | 'monthly');
+    if (savedLastRun) setLastScheduledRun(savedLastRun);
+  }, []);
+
+  // Save schedule settings
+  const saveScheduleSettings = () => {
+    localStorage.setItem('streamRefreshEnabled', String(scheduleEnabled));
+    localStorage.setItem('streamRefreshInterval', scheduleInterval);
+    toast.success('Schedule settings saved');
+    setShowScheduleSettings(false);
+  };
+
+  // Check if scheduled refresh should run
+  useEffect(() => {
+    if (!scheduleEnabled || isBulkRefreshing) return;
+    
+    const checkSchedule = () => {
+      const lastRun = localStorage.getItem('streamRefreshLastRun');
+      const now = new Date();
+      
+      if (!lastRun) {
+        // Never run before, run now
+        runScheduledRefresh();
+        return;
+      }
+      
+      const lastRunDate = new Date(lastRun);
+      const diffMs = now.getTime() - lastRunDate.getTime();
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      
+      let shouldRun = false;
+      switch (scheduleInterval) {
+        case 'daily':
+          shouldRun = diffDays >= 1;
+          break;
+        case 'weekly':
+          shouldRun = diffDays >= 7;
+          break;
+        case 'monthly':
+          shouldRun = diffDays >= 30;
+          break;
+      }
+      
+      if (shouldRun) {
+        runScheduledRefresh();
+      }
+    };
+    
+    // Check immediately
+    if (content.length > 0) {
+      checkSchedule();
+    }
+  }, [scheduleEnabled, scheduleInterval, content.length]);
+
+  const runScheduledRefresh = async () => {
+    toast.info('Running scheduled stream refresh...');
+    await bulkRefreshStreams();
+    const now = new Date().toISOString();
+    localStorage.setItem('streamRefreshLastRun', now);
+    setLastScheduledRun(now);
+  };
   const fetchContent = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
@@ -306,24 +389,57 @@ const AdminStreams = () => {
           ))}
         </div>
 
-        <Button
-          onClick={bulkRefreshStreams}
-          disabled={isBulkRefreshing || stats.noStreams === 0}
-          className="gap-2"
-        >
-          {isBulkRefreshing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Checking... ({bulkProgress.current}/{bulkProgress.total})
-            </>
-          ) : (
-            <>
-              <RefreshCw className="w-4 h-4" />
-              Bulk Refresh ({stats.noStreams} items)
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowScheduleSettings(true)}
+            className="gap-2"
+          >
+            <Clock className="w-4 h-4" />
+            Schedule
+            {scheduleEnabled && (
+              <span className="w-2 h-2 bg-green-400 rounded-full" />
+            )}
+          </Button>
+          
+          <Button
+            onClick={bulkRefreshStreams}
+            disabled={isBulkRefreshing || stats.noStreams === 0}
+            className="gap-2"
+          >
+            {isBulkRefreshing ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Checking... ({bulkProgress.current}/{bulkProgress.total})
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Bulk Refresh ({stats.noStreams} items)
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Scheduled Refresh Info */}
+      {scheduleEnabled && (
+        <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-primary" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Automatic refresh enabled ({scheduleInterval})
+              </p>
+              {lastScheduledRun && (
+                <p className="text-xs text-muted-foreground">
+                  Last run: {new Date(lastScheduledRun).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Progress */}
       {isBulkRefreshing && (
@@ -463,6 +579,79 @@ const AdminStreams = () => {
               </Button>
               <Button variant="outline" onClick={() => setShowBulkResults(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Schedule Settings Modal */}
+      <Dialog open={showScheduleSettings} onOpenChange={setShowScheduleSettings}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Scheduled Stream Refresh
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">Enable automatic refresh</p>
+                <p className="text-sm text-muted-foreground">
+                  Periodically check JustWatch for new streams
+                </p>
+              </div>
+              <button
+                onClick={() => setScheduleEnabled(!scheduleEnabled)}
+                className={`w-12 h-6 rounded-full transition-colors ${
+                  scheduleEnabled ? 'bg-primary' : 'bg-secondary'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                    scheduleEnabled ? 'translate-x-6' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {scheduleEnabled && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Check interval
+                </label>
+                <Select value={scheduleInterval} onValueChange={(v) => setScheduleInterval(v as typeof scheduleInterval)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Refresh runs when you visit this page and the interval has passed
+                </p>
+              </div>
+            )}
+
+            {lastScheduledRun && (
+              <div className="p-3 bg-secondary/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  Last scheduled run: {new Date(lastScheduledRun).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button onClick={saveScheduleSettings} className="flex-1">
+                Save Settings
+              </Button>
+              <Button variant="outline" onClick={() => setShowScheduleSettings(false)}>
+                Cancel
               </Button>
             </div>
           </div>

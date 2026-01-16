@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Magnet, Loader2, Link, Plus, Trash2 } from 'lucide-react';
+import { X, Magnet, Loader2, Link, Plus, Trash2, Film, Globe } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { isDirectVideoUrl } from '@/components/VideoPlayer';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
 type ContentType = Database['public']['Enums']['content_type'];
@@ -385,6 +386,21 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
               className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="https://www.youtube.com/embed/..."
             />
+            {formData.video_embed_url && (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                {isDirectVideoUrl(formData.video_embed_url) ? (
+                  <>
+                    <Film className="w-3 h-3 text-green-400" />
+                    <span className="text-green-400">Native HTML5 player will be used</span>
+                  </>
+                ) : (
+                  <>
+                    <Globe className="w-3 h-3 text-blue-400" />
+                    <span className="text-blue-400">Iframe embed player will be used</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Magnet Link Resolution */}

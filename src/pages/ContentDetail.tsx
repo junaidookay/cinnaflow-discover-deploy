@@ -1,9 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { Play, ExternalLink, ArrowLeft } from 'lucide-react';
+import VideoPlayer, { isDirectVideoUrl } from '@/components/VideoPlayer';
+import { Play, ExternalLink, ArrowLeft, Film } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
@@ -13,6 +14,7 @@ const ContentDetail = () => {
   const [content, setContent] = useState<ContentItem | null>(null);
   const [related, setRelated] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -123,19 +125,51 @@ const ContentDetail = () => {
                 </div>
               )}
 
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors">
-                <Play className="w-5 h-5" />
-                Watch Now
-              </button>
-
-              {/* Video Embed */}
+              {/* Watch Now Button */}
               {content.video_embed_url && (
-                <div className="mt-8 aspect-video bg-card rounded-xl overflow-hidden">
-                  <iframe
-                    src={content.video_embed_url}
-                    className="w-full h-full"
-                    allowFullScreen
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                <button 
+                  onClick={() => playerRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+                >
+                  <Play className="w-5 h-5" />
+                  Watch Now
+                </button>
+              )}
+
+              {/* External Watch Links */}
+              {content.external_watch_links && Object.keys(content.external_watch_links as object).length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Available on:</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(content.external_watch_links as Record<string, string>).map(([provider, url]) => (
+                      <a
+                        key={provider}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span className="capitalize">{provider.replace(/_/g, ' ')}</span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Video Player */}
+              {content.video_embed_url && (
+                <div ref={playerRef} className="mt-8">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Film className="w-4 h-4 text-primary" />
+                    <span className="text-sm text-muted-foreground">
+                      {isDirectVideoUrl(content.video_embed_url) ? 'Direct Stream' : 'Embedded Player'}
+                    </span>
+                  </div>
+                  <VideoPlayer 
+                    src={content.video_embed_url} 
+                    poster={content.thumbnail_url || content.poster_url || undefined}
+                    title={content.title}
                   />
                 </div>
               )}

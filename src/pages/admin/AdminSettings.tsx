@@ -64,14 +64,40 @@ const AdminSettings = () => {
     }
   };
 
-  const handleSaveStripeKeys = () => {
+  const [isSavingStripe, setIsSavingStripe] = useState(false);
+
+  const handleSaveStripeKeys = async () => {
     if (!stripeSecretKey || !stripePublishableKey) {
       toast.error('Please enter both Stripe keys');
       return;
     }
-    toast.success('Stripe keys saved! Integration will be activated when backend is configured.');
-    setIsStripeConfigured(true);
+    
+    setIsSavingStripe(true);
+    try {
+      // The keys will be saved via the secrets management system
+      // For now, we store them in localStorage for the publishable key (safe for client)
+      // and mark that configuration is pending for the secret key
+      localStorage.setItem('stripe_publishable_key', stripePublishableKey);
+      
+      toast.success('Stripe publishable key saved! Add the secret key (STRIPE_SECRET_KEY) to your backend secrets for full activation.');
+      toast.info('Go to Settings → Cloud → Secrets to add STRIPE_SECRET_KEY');
+      setIsStripeConfigured(true);
+    } catch (error) {
+      console.error('Error saving Stripe keys:', error);
+      toast.error('Failed to save Stripe configuration');
+    } finally {
+      setIsSavingStripe(false);
+    }
   };
+
+  // Check if Stripe publishable key exists on load
+  useEffect(() => {
+    const savedPublishableKey = localStorage.getItem('stripe_publishable_key');
+    if (savedPublishableKey) {
+      setStripePublishableKey(savedPublishableKey);
+      setIsStripeConfigured(true);
+    }
+  }, []);
 
   const formatExpirationDate = (dateStr: string) => {
     try {
@@ -276,9 +302,13 @@ const AdminSettings = () => {
               </p>
             </div>
 
-            <Button onClick={handleSaveStripeKeys} className="w-full">
-              <CreditCard className="w-4 h-4 mr-2" />
-              Save Stripe Configuration
+            <Button onClick={handleSaveStripeKeys} className="w-full" disabled={isSavingStripe}>
+              {isSavingStripe ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              {isSavingStripe ? 'Saving...' : 'Save Stripe Configuration'}
             </Button>
           </div>
 
@@ -287,17 +317,23 @@ const AdminSettings = () => {
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex justify-between">
                 <span>Free</span>
-                <span>$0/month</span>
+                <span>$0/month - Limited content access</span>
               </div>
               <div className="flex justify-between">
                 <span>Premium</span>
-                <span>$9.99/month</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Pro</span>
-                <span>$19.99/month</span>
+                <span>$5/month - Full content access</span>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-secondary/50 rounded-lg">
+            <h4 className="text-sm font-medium mb-2">Setup Instructions</h4>
+            <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+              <li>Get your API keys from <span className="text-primary">dashboard.stripe.com/apikeys</span></li>
+              <li>Enter the Publishable Key above (starts with pk_)</li>
+              <li>Add STRIPE_SECRET_KEY to your backend secrets (starts with sk_)</li>
+              <li>Stripe will be ready for subscription payments</li>
+            </ol>
           </div>
         </div>
 

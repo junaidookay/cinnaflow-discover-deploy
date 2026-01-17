@@ -3,9 +3,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import PaymentMethodCard from "@/components/dashboard/PaymentMethodCard";
 import { Play, Clock, Heart, TrendingUp, Crown, Sparkles, CheckCircle, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
 const ViewerDashboard = () => {
   const { user } = useAuth();
   const { currentTier, isPremium, isPro, tierDetails } = useSubscription();
@@ -135,18 +135,22 @@ const ViewerDashboard = () => {
             </Link>
           </div>
 
-          {/* Upgrade prompt for free users / Account type switch */}
-          <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-6">
-            <h3 className="text-lg font-semibold mb-2">Are you an artist or creator?</h3>
-            <p className="text-muted-foreground mb-4">
-              Switch to an artist or creator account to access promotion tools and reach a wider audience.
-            </p>
-            <Link
-              to="/settings"
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              Update Account Type
-            </Link>
+          {/* Payment Methods & Account Type */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <PaymentMethodCard showUpgradePrompt={!isPremium} />
+            
+            <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-2">Are you an artist or creator?</h3>
+              <p className="text-muted-foreground mb-4">
+                Switch to an artist or creator account to access promotion tools and reach a wider audience.
+              </p>
+              <Link
+                to="/settings"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Update Account Type
+              </Link>
+            </div>
           </div>
         </div>
       </main>

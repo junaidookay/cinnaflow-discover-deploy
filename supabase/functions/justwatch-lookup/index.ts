@@ -40,16 +40,30 @@ serve(async (req) => {
       throw new Error('Title is required');
     }
 
-    // Search JustWatch for the content
+    console.log(`Searching JustWatch for: "${title}" (${year || 'no year'}, type: ${type || 'movie'})`);
+
+    // Updated GraphQL query matching current JustWatch API schema
     const searchQuery = `
-      query SearchTitles($searchTitlesInput: SearchTitlesInput!, $country: Country!, $language: Language!) {
-        searchTitles(input: $searchTitlesInput, country: $country, language: $language) {
+      query SearchTitles(
+        $searchQuery: String!,
+        $country: Country!,
+        $language: Language!,
+        $first: Int!,
+        $filter: TitleFilter
+      ) {
+        popularTitles(
+          country: $country,
+          first: $first,
+          filter: $filter,
+          sortBy: POPULAR,
+          sortRandomSeed: 0
+        ) {
           edges {
             node {
               id
               objectId
               objectType
-              content {
+              content(country: $country, language: $language) {
                 title
                 originalReleaseYear
                 externalIds {
@@ -73,21 +87,59 @@ serve(async (req) => {
       }
     `;
 
+    // Alternative simpler search using the title search endpoint
+    const simpleSearchQuery = `
+      query GetSearchTitles($country: Country!, $language: Language!, $first: Int!, $searchQuery: String!) {
+        search: popularTitles(
+          country: $country
+          first: $first
+          filter: { searchQuery: $searchQuery }
+          sortBy: POPULAR
+        ) {
+          edges {
+            node {
+              id
+              objectId
+              objectType
+              content(country: $country, language: $language) {
+                title
+                originalReleaseYear
+                externalIds {
+                  tmdbId
+                }
+              }
+              offers(country: $country, platform: WEB) {
+                monetizationType
+                presentationType
+                standardWebURL
+                package {
+                  id
+                  packageId
+                  clearName
+                  technicalName
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const objectTypes = type === 'tv' ? ['SHOW'] : ['MOVIE'];
+
     const searchResponse = await fetch(JUSTWATCH_API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
       body: JSON.stringify({
-        query: searchQuery,
+        query: simpleSearchQuery,
         variables: {
-          searchTitlesInput: {
-            searchQuery: title,
-            objectTypes: type === 'tv' ? ['SHOW'] : ['MOVIE'],
-            first: 10,
-          },
+          searchQuery: title,
           country: 'US',
           language: 'en',
+          first: 10,
         },
       }),
     });
@@ -96,10 +148,22 @@ serve(async (req) => {
     
     if (searchData.errors) {
       console.error('JustWatch GraphQL errors:', searchData.errors);
+      
+      // Try alternative REST API approach
+      console.log('Trying alternative REST API...');
+      const restResult = await tryRestApi(title, type, year, tmdb_id);
+      if (restResult) {
+        return new Response(JSON.stringify(restResult), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
       throw new Error('JustWatch API error');
     }
 
-    const edges = searchData?.data?.searchTitles?.edges || [];
+    const edges = searchData?.data?.search?.edges || searchData?.data?.popularTitles?.edges || [];
+    
+    console.log(`Found ${edges.length} results from JustWatch`);
     
     // Find the best match based on title, year, and optionally TMDB ID
     let bestMatch = null;
@@ -108,28 +172,50 @@ serve(async (req) => {
       const node = edge.node;
       const content = node.content;
       
+      // Filter by type if specified
+      if (type) {
+        const expectedType = type === 'tv' ? 'SHOW' : 'MOVIE';
+        if (node.objectType !== expectedType) continue;
+      }
+      
       // Check if TMDB ID matches (most reliable)
-      if (tmdb_id && content?.externalIds?.tmdbId === tmdb_id) {
+      if (tmdb_id && content?.externalIds?.tmdbId === String(tmdb_id)) {
         bestMatch = node;
+        console.log(`Found exact TMDB match: ${content?.title}`);
         break;
       }
       
       // Check title and year match
-      const titleMatch = content?.title?.toLowerCase() === title.toLowerCase();
-      const yearMatch = !year || content?.originalReleaseYear === year;
+      const titleMatch = content?.title?.toLowerCase().includes(title.toLowerCase()) ||
+                         title.toLowerCase().includes(content?.title?.toLowerCase());
+      const yearMatch = !year || content?.originalReleaseYear === year || 
+                        content?.originalReleaseYear === parseInt(year);
       
       if (titleMatch && yearMatch) {
         bestMatch = node;
+        console.log(`Found title/year match: ${content?.title} (${content?.originalReleaseYear})`);
         break;
       }
     }
     
-    // If no exact match, take the first result
+    // If no exact match, take the first result of correct type
     if (!bestMatch && edges.length > 0) {
-      bestMatch = edges[0].node;
+      for (const edge of edges) {
+        if (type) {
+          const expectedType = type === 'tv' ? 'SHOW' : 'MOVIE';
+          if (edge.node.objectType === expectedType) {
+            bestMatch = edge.node;
+            break;
+          }
+        } else {
+          bestMatch = edges[0].node;
+          break;
+        }
+      }
     }
 
     if (!bestMatch) {
+      console.log('No match found on JustWatch');
       return new Response(JSON.stringify({ 
         found: false,
         freeStreaming: [],
@@ -141,12 +227,13 @@ serve(async (req) => {
 
     // Extract offers
     const offers = bestMatch.offers || [];
+    console.log(`Found ${offers.length} streaming offers`);
     
     // Filter to free streaming options
     const freeOffers: StreamingOffer[] = offers
       .filter((offer: any) => {
         const isFreeProvider = FREE_PROVIDER_IDS.includes(offer.package?.packageId);
-        const isFree = offer.monetizationType === 'FREE' || offer.monetizationType === 'ADS';
+        const isFree = offer.monetizationType === 'FREE' || offer.monetizationType === 'ADS' || offer.monetizationType === 'FLATRATE_AND_ADS';
         return isFreeProvider || isFree;
       })
       .map((offer: any) => ({
@@ -159,6 +246,8 @@ serve(async (req) => {
       .filter((offer: StreamingOffer, index: number, self: StreamingOffer[]) => 
         index === self.findIndex(o => o.providerId === offer.providerId)
       );
+
+    console.log(`Found ${freeOffers.length} free streaming options`);
 
     // Get all offers for reference
     const allOffers: StreamingOffer[] = offers
@@ -195,3 +284,90 @@ serve(async (req) => {
     );
   }
 });
+
+// Alternative REST API fallback
+async function tryRestApi(title: string, type: string | undefined, year: number | undefined, tmdb_id: string | undefined): Promise<any | null> {
+  try {
+    // JustWatch also has a REST search endpoint
+    const encodedTitle = encodeURIComponent(title);
+    const searchUrl = `https://apis.justwatch.com/content/titles/en_US/popular?body={"page_size":10,"page":1,"query":"${encodedTitle}","content_types":["${type === 'tv' ? 'show' : 'movie'}"]}`;
+    
+    const response = await fetch(searchUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (!response.ok) {
+      console.log('REST API also failed');
+      return null;
+    }
+    
+    const data = await response.json();
+    const items = data?.items || [];
+    
+    if (items.length === 0) {
+      return { found: false, freeStreaming: [], allOffers: [] };
+    }
+    
+    // Find best match
+    let bestItem = items[0];
+    for (const item of items) {
+      if (year && item.original_release_year === year) {
+        bestItem = item;
+        break;
+      }
+    }
+    
+    // Get offers for this item
+    const offersUrl = `https://apis.justwatch.com/content/titles/${type === 'tv' ? 'show' : 'movie'}/${bestItem.id}/locale/en_US`;
+    const offersResponse = await fetch(offersUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+    });
+    
+    if (!offersResponse.ok) {
+      return { found: true, title: bestItem.title, year: bestItem.original_release_year, freeStreaming: [], allOffers: [] };
+    }
+    
+    const offersData = await offersResponse.json();
+    const offers = offersData?.offers || [];
+    
+    const freeOffers = offers
+      .filter((offer: any) => {
+        const isFreeProvider = FREE_PROVIDER_IDS.includes(offer.provider_id);
+        const isFree = offer.monetization_type === 'free' || offer.monetization_type === 'ads';
+        return isFreeProvider || isFree;
+      })
+      .map((offer: any) => {
+        const provider = FREE_PROVIDERS.find(p => p.id === offer.provider_id);
+        return {
+          provider: provider?.name || `Provider ${offer.provider_id}`,
+          providerId: offer.provider_id,
+          url: offer.urls?.standard_web || '',
+          monetizationType: offer.monetization_type?.toUpperCase() || 'FREE',
+        };
+      })
+      .filter((offer: StreamingOffer, index: number, self: StreamingOffer[]) => 
+        index === self.findIndex(o => o.providerId === offer.providerId)
+      );
+    
+    return {
+      found: true,
+      title: bestItem.title,
+      year: bestItem.original_release_year,
+      freeStreaming: freeOffers,
+      allOffers: offers.slice(0, 20).map((offer: any) => ({
+        provider: `Provider ${offer.provider_id}`,
+        providerId: offer.provider_id,
+        url: offer.urls?.standard_web || '',
+        monetizationType: offer.monetization_type?.toUpperCase() || 'UNKNOWN',
+      })),
+    };
+  } catch (err) {
+    console.error('REST API fallback error:', err);
+    return null;
+  }
+}

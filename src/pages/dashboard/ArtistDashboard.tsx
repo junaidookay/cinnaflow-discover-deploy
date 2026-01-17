@@ -8,7 +8,8 @@ import Footer from "@/components/Footer";
 import SubmitMusicForm from "@/components/dashboard/SubmitMusicForm";
 import QuickPromotion from "@/components/dashboard/QuickPromotion";
 import AnalyticsDashboard from "@/components/dashboard/AnalyticsDashboard";
-import { Music, BarChart3, Settings, Clock, CheckCircle, XCircle, Plus, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
+import PaymentMethodCard from "@/components/dashboard/PaymentMethodCard";
+import { Music, BarChart3, Settings, Clock, CheckCircle, XCircle, Plus, ChevronDown, ChevronUp, TrendingUp, CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -72,6 +73,10 @@ const ArtistDashboard = () => {
               <TabsTrigger value="analytics" className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4" />
                 Analytics
+              </TabsTrigger>
+              <TabsTrigger value="billing" className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4" />
+                Billing
               </TabsTrigger>
             </TabsList>
 
@@ -225,6 +230,32 @@ const ArtistDashboard = () => {
                     </p>
                   </div>
                 )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="billing">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PaymentMethodCard />
+                
+                <div className="bg-card border border-border rounded-xl p-6">
+                  <h3 className="font-semibold text-foreground mb-4">Billing Information</h3>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-secondary/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">Promotion Packages</p>
+                      <p className="text-foreground font-medium">Artist Promotion - $29/week</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Featured placement on homepage and artist pages
+                      </p>
+                    </div>
+                    <div className="p-4 bg-secondary/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">Premium Membership</p>
+                      <p className="text-foreground font-medium">$5/month</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ad-free viewing with full content access
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

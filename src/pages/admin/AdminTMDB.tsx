@@ -223,8 +223,9 @@ const AdminTMDB = () => {
     const contentType = mediaType === 'movie' ? 'movie' : 'tv';
     const title = item.title || item.name || 'Untitled';
     
-    // Map genre IDs to tags
-    const tags = item.genre_ids?.map(id => genreMap[id]).filter(Boolean) || [];
+    // Map genre IDs to tags and add TMDB ID for alternative streaming sources
+    const genreTags = item.genre_ids?.map(id => genreMap[id]).filter(Boolean) || [];
+    const tags = [...genreTags, `tmdb:${item.id}`]; // Add TMDB ID for fallback streaming
 
     // Format external links as JSON
     const formattedLinks = links?.filter(l => l.url.trim())?.map(l => ({

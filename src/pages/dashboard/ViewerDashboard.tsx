@@ -1,14 +1,30 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PaymentMethodCard from "@/components/dashboard/PaymentMethodCard";
-import { Play, Clock, Heart, TrendingUp, Crown, Sparkles, CheckCircle, List } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import SubscriptionUpgrade from "@/components/dashboard/SubscriptionUpgrade";
+import { Play, Heart, TrendingUp, Crown, CheckCircle, List } from "lucide-react";
+import { toast } from "sonner";
+
 const ViewerDashboard = () => {
   const { user } = useAuth();
   const { currentTier, isPremium, isPro, tierDetails } = useSubscription();
+  const [searchParams] = useSearchParams();
+
+  // Handle successful checkout redirect
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const tier = searchParams.get('tier');
+    
+    if (success === 'true' && tier) {
+      toast.success(`Welcome to ${tier.charAt(0).toUpperCase() + tier.slice(1)}! Your subscription is now active.`);
+      // Clear the URL params
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, [searchParams]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,15 +72,6 @@ const ViewerDashboard = () => {
                   </p>
                 </div>
               </div>
-              
-              {!isPro && (
-                <Link to="/subscription">
-                  <Button variant={isPremium ? "outline" : "default"} className="gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    {isPremium ? 'Upgrade to Pro' : 'Upgrade Plan'}
-                  </Button>
-                </Link>
-              )}
             </div>
 
             {/* Current tier features */}
@@ -79,6 +86,13 @@ const ViewerDashboard = () => {
               </div>
             </div>
           </div>
+
+          {/* Upgrade Section - only show if not Pro */}
+          {!isPro && (
+            <div className="mb-8">
+              <SubscriptionUpgrade />
+            </div>
+          )}
 
           {/* Quick actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">

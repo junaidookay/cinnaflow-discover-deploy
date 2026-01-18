@@ -4,7 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import VideoPlayer, { isDirectVideoUrl } from '@/components/VideoPlayer';
-import { Play, ExternalLink, ArrowLeft, Film } from 'lucide-react';
+import StreamSourceSelector from '@/components/StreamSourceSelector';
+import { extractTmdbInfo } from '@/lib/streamingSources';
+import { Play, ExternalLink, ArrowLeft, Film, Tv } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
@@ -157,8 +159,8 @@ const ContentDetail = () => {
                 </div>
               )}
 
-              {/* Video Player */}
-              {content.video_embed_url && (
+              {/* Video Player Section */}
+              {content.video_embed_url ? (
                 <div ref={playerRef} className="mt-8">
                   <div className="flex items-center gap-2 mb-3">
                     <Film className="w-4 h-4 text-primary" />
@@ -172,6 +174,47 @@ const ContentDetail = () => {
                     title={content.title}
                   />
                 </div>
+              ) : (
+                // Fallback to alternative streaming sources if TMDB ID is available
+                (() => {
+                  const { tmdbId, type } = extractTmdbInfo({
+                    title: content.title,
+                    content_type: content.content_type,
+                    tags: content.tags,
+                    external_watch_links: content.external_watch_links as Record<string, string> | null,
+                  });
+                  
+                  if (tmdbId) {
+                    return (
+                      <div ref={playerRef} className="mt-8">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Tv className="w-4 h-4 text-primary" />
+                          <span className="text-sm text-muted-foreground">
+                            Alternative Streaming Source
+                          </span>
+                        </div>
+                        <StreamSourceSelector
+                          tmdbId={tmdbId}
+                          type={type}
+                          poster={content.thumbnail_url || content.poster_url || undefined}
+                          title={content.title}
+                        />
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div ref={playerRef} className="mt-8">
+                      <div className="aspect-video bg-card rounded-xl flex flex-col items-center justify-center text-center p-6">
+                        <Film className="w-12 h-12 text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground mb-2">No streaming source available</p>
+                        <p className="text-sm text-muted-foreground">
+                          Check the external watch links above to find this content on other platforms.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
               )}
             </div>
           </div>

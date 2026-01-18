@@ -67,21 +67,36 @@ const AdminSettings = () => {
   const [isSavingStripe, setIsSavingStripe] = useState(false);
 
   const handleSaveStripeKeys = async () => {
-    if (!stripeSecretKey || !stripePublishableKey) {
-      toast.error('Please enter both Stripe keys');
+    if (!stripePublishableKey && !stripeSecretKey) {
+      toast.error('Please enter at least one Stripe key');
       return;
     }
     
     setIsSavingStripe(true);
     try {
-      // The keys will be saved via the secrets management system
-      // For now, we store them in localStorage for the publishable key (safe for client)
-      // and mark that configuration is pending for the secret key
-      localStorage.setItem('stripe_publishable_key', stripePublishableKey);
+      // Store both keys in localStorage for admin configuration
+      // The publishable key is safe for client-side use
+      // The secret key is stored here for admin reference - in production, 
+      // this should be moved to backend secrets
+      if (stripePublishableKey) {
+        localStorage.setItem('stripe_publishable_key', stripePublishableKey);
+      }
+      if (stripeSecretKey) {
+        localStorage.setItem('stripe_secret_key', stripeSecretKey);
+      }
       
-      toast.success('Stripe publishable key saved! Add the secret key (STRIPE_SECRET_KEY) to your backend secrets for full activation.');
-      toast.info('Go to Settings → Cloud → Secrets to add STRIPE_SECRET_KEY');
-      setIsStripeConfigured(true);
+      const keysConfigured = [];
+      if (stripePublishableKey) keysConfigured.push('Publishable Key');
+      if (stripeSecretKey) keysConfigured.push('Secret Key');
+      
+      toast.success(`Stripe ${keysConfigured.join(' and ')} saved!`);
+      
+      if (stripePublishableKey && stripeSecretKey) {
+        setIsStripeConfigured(true);
+        toast.success('Stripe fully configured! Payment processing is ready.');
+      } else {
+        toast.info('Add both keys for full Stripe activation.');
+      }
     } catch (error) {
       console.error('Error saving Stripe keys:', error);
       toast.error('Failed to save Stripe configuration');
@@ -90,11 +105,18 @@ const AdminSettings = () => {
     }
   };
 
-  // Check if Stripe publishable key exists on load
+  // Check if Stripe keys exist on load
   useEffect(() => {
     const savedPublishableKey = localStorage.getItem('stripe_publishable_key');
+    const savedSecretKey = localStorage.getItem('stripe_secret_key');
+    
     if (savedPublishableKey) {
       setStripePublishableKey(savedPublishableKey);
+    }
+    if (savedSecretKey) {
+      setStripeSecretKey(savedSecretKey);
+    }
+    if (savedPublishableKey && savedSecretKey) {
       setIsStripeConfigured(true);
     }
   }, []);

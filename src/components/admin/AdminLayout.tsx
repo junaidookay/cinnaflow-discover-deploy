@@ -22,6 +22,7 @@ interface AdminLayoutProps {
 const navItems = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Content', href: '/admin/content', icon: Film },
+  { name: 'Podcasts', href: '/admin/podcasts', icon: Radio },
   { name: 'Streams', href: '/admin/streams', icon: Radio },
   { name: 'TMDB Import', href: '/admin/tmdb', icon: Download },
   { name: 'Artists', href: '/admin/artists', icon: Music },

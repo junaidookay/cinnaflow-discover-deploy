@@ -12,8 +12,7 @@ import { Badge } from "@/components/ui/badge";
 const navItems = [
   { name: "Home", href: "/" },
   { name: "Movies", href: "/movies" },
-  { name: "TV", href: "/tv" },
-  { name: "Sports", href: "/sports" },
+  { name: "Podcasts", href: "/podcasts" },
   { name: "Music Artists", href: "/artists" },
   { name: "Creators", href: "/creators" },
 ];

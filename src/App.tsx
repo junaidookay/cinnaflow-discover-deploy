@@ -14,6 +14,7 @@ import SubmitCreator from "./pages/SubmitCreator";
 import CategoryPage from "./pages/CategoryPage";
 import ArtistsPage from "./pages/ArtistsPage";
 import CreatorsPage from "./pages/CreatorsPage";
+import PodcastsPage from "./pages/PodcastsPage";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Subscription from "./pages/Subscription";
@@ -26,6 +27,7 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminPlex from "./pages/admin/AdminPlex";
 import AdminTMDB from "./pages/admin/AdminTMDB";
 import AdminStreams from "./pages/admin/AdminStreams";
+import AdminPodcasts from "./pages/admin/AdminPodcasts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,12 +53,14 @@ const App = () => (
             <Route path="/tv" element={<CategoryPage />} />
             <Route path="/sports" element={<CategoryPage />} />
             <Route path="/clips" element={<CategoryPage />} />
+            <Route path="/podcasts" element={<PodcastsPage />} />
             <Route path="/artists" element={<ArtistsPage />} />
             <Route path="/creators" element={<CreatorsPage />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/content" element={<AdminContent />} />
+            <Route path="/admin/podcasts" element={<AdminPodcasts />} />
             <Route path="/admin/artists" element={<AdminArtists />} />
             <Route path="/admin/creators" element={<AdminCreators />} />
             <Route path="/admin/settings" element={<AdminSettings />} />

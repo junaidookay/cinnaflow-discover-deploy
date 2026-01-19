@@ -11,7 +11,9 @@ import {
   ChevronRight,
   Server,
   Download,
-  Radio
+  Radio,
+  Zap,
+  Wifi
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -22,8 +24,9 @@ interface AdminLayoutProps {
 const navItems = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Content', href: '/admin/content', icon: Film },
+  { name: 'Automation', href: '/admin/automation', icon: Zap },
   { name: 'Podcasts', href: '/admin/podcasts', icon: Radio },
-  { name: 'Streams', href: '/admin/streams', icon: Radio },
+  { name: 'Streams', href: '/admin/streams', icon: Wifi },
   { name: 'TMDB Import', href: '/admin/tmdb', icon: Download },
   { name: 'Artists', href: '/admin/artists', icon: Music },
   { name: 'Creators', href: '/admin/creators', icon: Users },

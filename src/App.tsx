@@ -28,6 +28,7 @@ import AdminPlex from "./pages/admin/AdminPlex";
 import AdminTMDB from "./pages/admin/AdminTMDB";
 import AdminStreams from "./pages/admin/AdminStreams";
 import AdminPodcasts from "./pages/admin/AdminPodcasts";
+import AdminAutomation from "./pages/admin/AdminAutomation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/admin/plex" element={<AdminPlex />} />
             <Route path="/admin/tmdb" element={<AdminTMDB />} />
             <Route path="/admin/streams" element={<AdminStreams />} />
+            <Route path="/admin/automation" element={<AdminAutomation />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

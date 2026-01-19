@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Key, Eye, EyeOff, CheckCircle, AlertCircle, HardDrive, RefreshCw, Loader2 } from 'lucide-react';
+import { CreditCard, Key, Eye, EyeOff, CheckCircle, AlertCircle, HardDrive, RefreshCw, Loader2, Youtube } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -16,6 +16,12 @@ const AdminSettings = () => {
   const [showSecret, setShowSecret] = useState(false);
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [isStripeConfigured, setIsStripeConfigured] = useState(false);
+  
+  // YouTube API state
+  const [youtubeApiKey, setYoutubeApiKey] = useState('');
+  const [showYoutubeKey, setShowYoutubeKey] = useState(false);
+  const [isSavingYoutube, setIsSavingYoutube] = useState(false);
+  const [isYoutubeConfigured, setIsYoutubeConfigured] = useState(false);
   
   // Real-Debrid state
   const [debridStatus, setDebridStatus] = useState<{
@@ -129,7 +135,33 @@ const AdminSettings = () => {
     if (savedPublishableKey && savedSecretKey) {
       setIsStripeConfigured(true);
     }
+    
+    // YouTube API key
+    const savedYoutubeKey = localStorage.getItem('youtube_api_key');
+    if (savedYoutubeKey) {
+      setYoutubeApiKey(savedYoutubeKey);
+      setIsYoutubeConfigured(true);
+    }
   }, []);
+
+  const handleSaveYoutubeKey = async () => {
+    if (!youtubeApiKey.trim()) {
+      toast.error('Please enter a YouTube API key');
+      return;
+    }
+    
+    setIsSavingYoutube(true);
+    try {
+      localStorage.setItem('youtube_api_key', youtubeApiKey);
+      setIsYoutubeConfigured(true);
+      toast.success('YouTube API key saved!');
+    } catch (error) {
+      console.error('Error saving YouTube key:', error);
+      toast.error('Failed to save YouTube configuration');
+    } finally {
+      setIsSavingYoutube(false);
+    }
+  };
 
   const formatExpirationDate = (dateStr: string) => {
     try {
@@ -392,6 +424,77 @@ const AdminSettings = () => {
               <li>Enter the Publishable Key above (starts with pk_)</li>
               <li>Add STRIPE_SECRET_KEY to your backend secrets (starts with sk_)</li>
               <li>Stripe will be ready for subscription payments</li>
+            </ol>
+          </div>
+        </div>
+
+        {/* YouTube API Section */}
+        <div className="bg-card border border-border rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-red-500/10 rounded-lg">
+              <Youtube className="w-5 h-5 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">YouTube Integration</h2>
+              <p className="text-sm text-muted-foreground">Enable podcast imports from YouTube</p>
+            </div>
+          </div>
+
+          {isYoutubeConfigured ? (
+            <div className="flex items-center gap-2 p-4 bg-green-500/10 border border-green-500/20 rounded-lg mb-4">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <span className="text-sm text-green-400">YouTube API configured</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-4">
+              <AlertCircle className="w-5 h-5 text-yellow-500" />
+              <span className="text-sm text-yellow-400">YouTube not configured - podcast imports disabled</span>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="youtube-key" className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                <Key className="w-4 h-4" />
+                API Key
+              </Label>
+              <div className="relative">
+                <Input
+                  id="youtube-key"
+                  type={showYoutubeKey ? 'text' : 'password'}
+                  placeholder="AIza..."
+                  value={youtubeApiKey}
+                  onChange={(e) => setYoutubeApiKey(e.target.value)}
+                  className="font-mono text-sm pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowYoutubeKey(!showYoutubeKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showYoutubeKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button onClick={handleSaveYoutubeKey} className="w-full" disabled={isSavingYoutube}>
+              {isSavingYoutube ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Youtube className="w-4 h-4 mr-2" />
+              )}
+              {isSavingYoutube ? 'Saving...' : 'Save YouTube Configuration'}
+            </Button>
+          </div>
+
+          <div className="mt-4 p-4 bg-secondary/50 rounded-lg">
+            <h4 className="text-sm font-medium mb-2">Setup Instructions</h4>
+            <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
+              <li>Go to <span className="text-primary">console.cloud.google.com</span></li>
+              <li>Create a new project or select existing one</li>
+              <li>Enable the YouTube Data API v3</li>
+              <li>Create an API key under Credentials</li>
+              <li>Add <code className="bg-secondary px-1 rounded">YOUTUBE_API_KEY</code> to backend secrets</li>
             </ol>
           </div>
         </div>

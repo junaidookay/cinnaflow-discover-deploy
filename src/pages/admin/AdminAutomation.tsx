@@ -14,17 +14,31 @@ import {
   Clock,
   AlertCircle,
   Play,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Search,
+  Wand2,
+  Magnet
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PendingItem {
   id: string;
   title: string;
   tags: string[] | null;
   created_at: string;
+}
+
+interface TorrentResult {
+  name: string;
+  info_hash: string;
+  seeders: number;
+  leechers: number;
+  size: string;
+  magnet: string;
 }
 
 interface Stats {
@@ -37,12 +51,18 @@ interface Stats {
 const AdminAutomation = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isAutoResolving, setIsAutoResolving] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'trending' | 'popular'>('trending');
   const [fetchLimit, setFetchLimit] = useState('10');
   const [magnetLinks, setMagnetLinks] = useState<Record<string, string>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchYear, setSearchYear] = useState('');
+  const [torrentResults, setTorrentResults] = useState<TorrentResult[]>([]);
+  const [autoResolveLimit, setAutoResolveLimit] = useState('5');
 
   useEffect(() => {
     loadStats();
@@ -146,6 +166,95 @@ const AdminAutomation = () => {
     } finally {
       setResolvingId(null);
     }
+  };
+
+  const searchTorrents = async () => {
+    if (!searchQuery.trim()) {
+      toast.error('Enter a search query');
+      return;
+    }
+
+    setIsSearching(true);
+    setTorrentResults([]);
+    try {
+      const { data, error } = await supabase.functions.invoke('content-automation', {
+        body: { 
+          action: 'search_torrents', 
+          query: searchQuery,
+          year: searchYear 
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.results?.length > 0) {
+        setTorrentResults(data.results);
+        toast.success(`Found ${data.results.length} torrents`);
+      } else {
+        toast.info('No torrents found');
+      }
+    } catch (err) {
+      console.error('Search error:', err);
+      toast.error('Torrent search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const autoResolveItem = async (contentId: string) => {
+    setResolvingId(contentId);
+    try {
+      const { data, error } = await supabase.functions.invoke('content-automation', {
+        body: { action: 'auto_resolve', contentId },
+      });
+
+      if (error) throw error;
+
+      if (data.status === 'ready') {
+        toast.success(`Resolved: ${data.torrent}`);
+        loadStats();
+        loadPendingItems();
+      } else if (data.status === 'no_results') {
+        toast.warning('No torrents found for this title');
+      } else {
+        toast.info(`${data.status}: ${data.torrent || 'Processing...'}`);
+      }
+    } catch (err) {
+      console.error('Auto-resolve error:', err);
+      toast.error('Auto-resolve failed');
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const bulkAutoResolve = async () => {
+    setIsAutoResolving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('content-automation', {
+        body: { action: 'bulk_auto_resolve', limit: parseInt(autoResolveLimit) },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Processed ${data.processed} items: ${data.resolved?.length || 0} resolved`);
+      
+      if (data.failed?.length > 0) {
+        console.log('Failed items:', data.failed);
+      }
+
+      loadStats();
+      loadPendingItems();
+    } catch (err) {
+      console.error('Bulk resolve error:', err);
+      toast.error('Bulk auto-resolve failed');
+    } finally {
+      setIsAutoResolving(false);
+    }
+  };
+
+  const copyMagnet = (magnet: string) => {
+    navigator.clipboard.writeText(magnet);
+    toast.success('Magnet link copied!');
   };
 
   return (
@@ -260,6 +369,72 @@ const AdminAutomation = () => {
           </CardContent>
         </Card>
 
+        {/* Torrent Search Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              Torrent Search
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-end mb-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-sm text-muted-foreground mb-2 block">Movie Title</label>
+                <Input
+                  placeholder="Search for a movie..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchTorrents()}
+                />
+              </div>
+              <div className="w-24">
+                <label className="text-sm text-muted-foreground mb-2 block">Year</label>
+                <Input
+                  placeholder="2024"
+                  value={searchYear}
+                  onChange={(e) => setSearchYear(e.target.value)}
+                />
+              </div>
+              <Button onClick={searchTorrents} disabled={isSearching}>
+                {isSearching ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                Search
+              </Button>
+            </div>
+
+            {torrentResults.length > 0 && (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {torrentResults.map((torrent) => (
+                  <div key={torrent.info_hash} className="flex items-center gap-4 p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{torrent.name}</p>
+                      <div className="flex gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {torrent.size}
+                        </Badge>
+                        <Badge variant="default" className="text-xs bg-green-600">
+                          S: {torrent.seeders}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          L: {torrent.leechers}
+                        </Badge>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => copyMagnet(torrent.magnet)}>
+                      <Magnet className="w-4 h-4 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Pending Items Section */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -267,13 +442,37 @@ const AdminAutomation = () => {
               <LinkIcon className="w-5 h-5" />
               Pending Resolution ({pendingItems.length})
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={loadPendingItems} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={autoResolveLimit}
+                  onChange={(e) => setAutoResolveLimit(e.target.value)}
+                  className="w-16 h-8"
+                />
+                <Button 
+                  size="sm" 
+                  onClick={bulkAutoResolve} 
+                  disabled={isAutoResolving || pendingItems.length === 0}
+                >
+                  {isAutoResolving ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-4 h-4 mr-2" />
+                  )}
+                  Auto-Resolve
+                </Button>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadPendingItems} disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {pendingItems.length === 0 ? (
@@ -296,9 +495,22 @@ const AdminAutomation = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => autoResolveItem(item.id)}
+                        disabled={resolvingId === item.id}
+                        title="Auto-find and resolve"
+                      >
+                        {resolvingId === item.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Wand2 className="w-4 h-4" />
+                        )}
+                      </Button>
                       <Input
-                        placeholder="Paste magnet link..."
-                        className="w-64 text-xs font-mono"
+                        placeholder="Or paste magnet link..."
+                        className="w-48 text-xs font-mono"
                         value={magnetLinks[item.id] || ''}
                         onChange={(e) => setMagnetLinks(prev => ({ ...prev, [item.id]: e.target.value }))}
                       />
@@ -320,11 +532,12 @@ const AdminAutomation = () => {
             )}
 
             <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
-              <h4 className="font-medium text-sm mb-2">💡 How to find magnet links</h4>
+              <h4 className="font-medium text-sm mb-2">🪄 Automation Tips</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Use your Debrid Media Manager to find cached content</li>
-                <li>• Cached torrents will stream instantly via Real-Debrid</li>
-                <li>• Paste the magnet link and click resolve to get streaming URL</li>
+                <li>• Click the wand icon to auto-search and resolve a single item</li>
+                <li>• Use "Auto-Resolve" to bulk process multiple items automatically</li>
+                <li>• Only torrents with 5+ seeders are used for better reliability</li>
+                <li>• Use the Torrent Search above to manually find specific versions</li>
               </ul>
             </div>
           </CardContent>

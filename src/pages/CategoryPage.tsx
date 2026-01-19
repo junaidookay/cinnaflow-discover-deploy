@@ -17,6 +17,17 @@ const categoryConfig: Record<string, { title: string; type: "movie" | "tv" | "sp
   "/clips": { title: "Clips", type: "clip" },
 };
 
+// Filter out internal tags for display
+const getDisplayTags = (tags: string[] | null): string[] => {
+  if (!tags) return [];
+  return tags.filter(tag => 
+    !tag.startsWith('tmdb:') && 
+    tag !== 'auto-imported' && 
+    tag !== 'trending' && 
+    tag !== 'popular'
+  );
+};
+
 const CategoryPage = () => {
   const location = useLocation();
   const config = categoryConfig[location.pathname];
@@ -113,11 +124,14 @@ const CategoryPage = () => {
                     {item.title}
                   </h3>
 
-                  {item.tags && item.tags.length > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {item.tags.slice(0, 2).join(" • ")}
-                    </p>
-                  )}
+                  {(() => {
+                    const displayTags = getDisplayTags(item.tags);
+                    return displayTags.length > 0 ? (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                        {displayTags.slice(0, 2).join(" • ")}
+                      </p>
+                    ) : null;
+                  })()}
                 </Link>
               ))}
             </div>

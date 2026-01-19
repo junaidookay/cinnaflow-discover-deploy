@@ -4,19 +4,44 @@ import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import VideoPlayer, { isDirectVideoUrl } from '@/components/VideoPlayer';
-import StreamSourceSelector from '@/components/StreamSourceSelector';
-import { extractTmdbInfo } from '@/lib/streamingSources';
-import { Play, ExternalLink, ArrowLeft, Film, Tv } from 'lucide-react';
+import { Play, ArrowLeft, Film, Star, Calendar, Clock } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type ContentItem = Database['public']['Tables']['content_items']['Row'];
+
+interface TMDBDetails {
+  vote_average?: number;
+  vote_count?: number;
+  release_date?: string;
+  runtime?: number;
+  genres?: { id: number; name: string }[];
+}
 
 const ContentDetail = () => {
   const { id } = useParams();
   const [content, setContent] = useState<ContentItem | null>(null);
   const [related, setRelated] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [tmdbDetails, setTmdbDetails] = useState<TMDBDetails | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
+
+  // Extract TMDB ID from tags
+  const getTmdbId = (tags: string[] | null): string | null => {
+    if (!tags) return null;
+    const tmdbTag = tags.find(t => t.startsWith('tmdb:'));
+    return tmdbTag ? tmdbTag.replace('tmdb:', '') : null;
+  };
+
+  // Filter out internal tags for display
+  const getDisplayTags = (tags: string[] | null): string[] => {
+    if (!tags) return [];
+    return tags.filter(tag => 
+      !tag.startsWith('tmdb:') && 
+      tag !== 'auto-imported' && 
+      tag !== 'trending' && 
+      tag !== 'popular'
+    );
+  };
 
   useEffect(() => {
     const fetchContent = async () => {
@@ -31,6 +56,22 @@ const ContentDetail = () => {
       setContent(data);
       
       if (data) {
+        // Fetch TMDB details if we have a TMDB ID
+        const tmdbId = getTmdbId(data.tags);
+        if (tmdbId) {
+          try {
+            const mediaType = data.content_type === 'tv' ? 'tv' : 'movie';
+            const { data: tmdbData } = await supabase.functions.invoke('tmdb-search', {
+              body: { action: 'details', id: tmdbId, type: mediaType }
+            });
+            if (tmdbData) {
+              setTmdbDetails(tmdbData);
+            }
+          } catch (err) {
+            console.log('Could not fetch TMDB details');
+          }
+        }
+        
         const { data: relatedData } = await supabase
           .from('content_items')
           .select('*')
@@ -117,15 +158,65 @@ const ContentDetail = () => {
                 <p className="text-muted-foreground mb-6 line-clamp-4">{content.description}</p>
               )}
 
-              {content.tags && content.tags.length > 0 && (
+              {/* TMDB Metrics */}
+              {tmdbDetails && (
+                <div className="flex flex-wrap gap-4 mb-6">
+                  {tmdbDetails.vote_average && tmdbDetails.vote_average > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-lg">
+                      <Star className="w-4 h-4 text-primary fill-primary" />
+                      <span className="font-semibold text-foreground">
+                        {tmdbDetails.vote_average.toFixed(1)}
+                      </span>
+                      {tmdbDetails.vote_count && (
+                        <span className="text-sm text-muted-foreground">
+                          ({tmdbDetails.vote_count.toLocaleString()} votes)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {tmdbDetails.release_date && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-foreground">
+                        {new Date(tmdbDetails.release_date).getFullYear()}
+                      </span>
+                    </div>
+                  )}
+                  {tmdbDetails.runtime && tmdbDetails.runtime > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-foreground">
+                        {Math.floor(tmdbDetails.runtime / 60)}h {tmdbDetails.runtime % 60}m
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Genre Tags */}
+              {tmdbDetails?.genres && tmdbDetails.genres.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {content.tags.map((tag) => (
-                    <span key={tag} className="px-3 py-1 bg-secondary text-foreground text-sm rounded-lg">
-                      {tag}
+                  {tmdbDetails.genres.map((genre) => (
+                    <span key={genre.id} className="px-3 py-1 bg-secondary text-foreground text-sm rounded-lg">
+                      {genre.name}
                     </span>
                   ))}
                 </div>
               )}
+
+              {/* Display Tags (filtered) */}
+              {(() => {
+                const displayTags = getDisplayTags(content.tags);
+                return displayTags.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    {displayTags.map((tag) => (
+                      <span key={tag} className="px-3 py-1 bg-secondary text-foreground text-sm rounded-lg">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
 
               {/* Watch Now Button */}
               {content.video_embed_url && (
@@ -136,27 +227,6 @@ const ContentDetail = () => {
                   <Play className="w-5 h-5" />
                   Watch Now
                 </button>
-              )}
-
-              {/* External Watch Links */}
-              {content.external_watch_links && Object.keys(content.external_watch_links as object).length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">Available on:</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(content.external_watch_links as Record<string, string>).map(([provider, url]) => (
-                      <a
-                        key={provider}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        <span className="capitalize">{provider.replace(/_/g, ' ')}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
               )}
 
               {/* Video Player Section */}
@@ -175,46 +245,15 @@ const ContentDetail = () => {
                   />
                 </div>
               ) : (
-                // Fallback to alternative streaming sources if TMDB ID is available
-                (() => {
-                  const { tmdbId, type } = extractTmdbInfo({
-                    title: content.title,
-                    content_type: content.content_type,
-                    tags: content.tags,
-                    external_watch_links: content.external_watch_links as Record<string, string> | null,
-                  });
-                  
-                  if (tmdbId) {
-                    return (
-                      <div ref={playerRef} className="mt-8">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Tv className="w-4 h-4 text-primary" />
-                          <span className="text-sm text-muted-foreground">
-                            Alternative Streaming Source
-                          </span>
-                        </div>
-                        <StreamSourceSelector
-                          tmdbId={tmdbId}
-                          type={type}
-                          poster={content.thumbnail_url || content.poster_url || undefined}
-                          title={content.title}
-                        />
-                      </div>
-                    );
-                  }
-                  
-                  return (
-                    <div ref={playerRef} className="mt-8">
-                      <div className="aspect-video bg-card rounded-xl flex flex-col items-center justify-center text-center p-6">
-                        <Film className="w-12 h-12 text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground mb-2">No streaming source available</p>
-                        <p className="text-sm text-muted-foreground">
-                          Check the external watch links above to find this content on other platforms.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()
+                <div ref={playerRef} className="mt-8">
+                  <div className="aspect-video bg-card rounded-xl flex flex-col items-center justify-center text-center p-6">
+                    <Film className="w-12 h-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-2">No streaming source available yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      This content is being processed. Check back soon!
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

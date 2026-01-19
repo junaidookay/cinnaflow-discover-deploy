@@ -12,7 +12,9 @@ const AdminSettings = () => {
   const { user } = useAuth();
   const [stripeSecretKey, setStripeSecretKey] = useState('');
   const [stripePublishableKey, setStripePublishableKey] = useState('');
+  const [stripeWebhookSecret, setStripeWebhookSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [isStripeConfigured, setIsStripeConfigured] = useState(false);
   
   // Real-Debrid state
@@ -67,35 +69,39 @@ const AdminSettings = () => {
   const [isSavingStripe, setIsSavingStripe] = useState(false);
 
   const handleSaveStripeKeys = async () => {
-    if (!stripePublishableKey && !stripeSecretKey) {
+    if (!stripePublishableKey && !stripeSecretKey && !stripeWebhookSecret) {
       toast.error('Please enter at least one Stripe key');
       return;
     }
     
     setIsSavingStripe(true);
     try {
-      // Store both keys in localStorage for admin configuration
+      // Store keys in localStorage for admin configuration
       // The publishable key is safe for client-side use
-      // The secret key is stored here for admin reference - in production, 
-      // this should be moved to backend secrets
+      // The secret/webhook keys are stored here for admin reference - in production, 
+      // these should be moved to backend secrets
       if (stripePublishableKey) {
         localStorage.setItem('stripe_publishable_key', stripePublishableKey);
       }
       if (stripeSecretKey) {
         localStorage.setItem('stripe_secret_key', stripeSecretKey);
       }
+      if (stripeWebhookSecret) {
+        localStorage.setItem('stripe_webhook_secret', stripeWebhookSecret);
+      }
       
       const keysConfigured = [];
       if (stripePublishableKey) keysConfigured.push('Publishable Key');
       if (stripeSecretKey) keysConfigured.push('Secret Key');
+      if (stripeWebhookSecret) keysConfigured.push('Webhook Secret');
       
-      toast.success(`Stripe ${keysConfigured.join(' and ')} saved!`);
+      toast.success(`Stripe ${keysConfigured.join(', ')} saved!`);
       
       if (stripePublishableKey && stripeSecretKey) {
         setIsStripeConfigured(true);
         toast.success('Stripe fully configured! Payment processing is ready.');
       } else {
-        toast.info('Add both keys for full Stripe activation.');
+        toast.info('Add all keys for full Stripe activation.');
       }
     } catch (error) {
       console.error('Error saving Stripe keys:', error);
@@ -109,12 +115,16 @@ const AdminSettings = () => {
   useEffect(() => {
     const savedPublishableKey = localStorage.getItem('stripe_publishable_key');
     const savedSecretKey = localStorage.getItem('stripe_secret_key');
+    const savedWebhookSecret = localStorage.getItem('stripe_webhook_secret');
     
     if (savedPublishableKey) {
       setStripePublishableKey(savedPublishableKey);
     }
     if (savedSecretKey) {
       setStripeSecretKey(savedSecretKey);
+    }
+    if (savedWebhookSecret) {
+      setStripeWebhookSecret(savedWebhookSecret);
     }
     if (savedPublishableKey && savedSecretKey) {
       setIsStripeConfigured(true);
@@ -321,6 +331,33 @@ const AdminSettings = () => {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Keep this key secure. It will be stored as an encrypted secret.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="stripe-webhook" className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                <Key className="w-4 h-4" />
+                Webhook Secret
+              </Label>
+              <div className="relative">
+                <Input
+                  id="stripe-webhook"
+                  type={showWebhookSecret ? 'text' : 'password'}
+                  placeholder="whsec_..."
+                  value={stripeWebhookSecret}
+                  onChange={(e) => setStripeWebhookSecret(e.target.value)}
+                  className="font-mono text-sm pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Found in Stripe Dashboard → Webhooks → Signing secret
               </p>
             </div>
 

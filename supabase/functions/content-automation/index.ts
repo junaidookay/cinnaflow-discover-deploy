@@ -53,7 +53,9 @@ serve(async (req) => {
   }
 
   try {
-    const { action, limit = 10, category = 'trending' } = await req.json();
+    // Parse body once - it can only be consumed once
+    const body = await req.json();
+    const { action, limit = 10, category = 'trending', contentId, magnet, query, year } = body;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     switch (action) {
@@ -165,8 +167,6 @@ serve(async (req) => {
 
       case 'resolve_single': {
         // Resolve a single magnet link for a content item
-        const { contentId, magnet } = await req.json();
-        
         if (!contentId || !magnet) {
           throw new Error('Content ID and magnet link required');
         }
@@ -312,8 +312,6 @@ serve(async (req) => {
 
       case 'search_torrents': {
         // Search for torrents by movie title
-        const { query, year } = await req.json();
-        
         if (!query) {
           throw new Error('Search query required');
         }
@@ -379,8 +377,6 @@ serve(async (req) => {
 
       case 'auto_resolve': {
         // Automatically search and resolve a content item
-        const { contentId } = await req.json();
-        
         if (!contentId) {
           throw new Error('Content ID required');
         }
@@ -556,7 +552,7 @@ serve(async (req) => {
 
       case 'bulk_auto_resolve': {
         // Auto-resolve multiple items
-        const { limit: resolveLimit = 5 } = await req.json();
+        const resolveLimit = limit || 5;
 
         if (!REAL_DEBRID_API_KEY) {
           return new Response(

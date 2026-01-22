@@ -307,11 +307,12 @@ serve(async (req) => {
 
         const torrentInfo: TorrentInfo = await infoResponse.json();
 
-        // If already cached, unrestrict the links
+        // If already cached, unrestrict ALL the links (for TV shows with episodes)
         if (torrentInfo.status === 'downloaded' && torrentInfo.links?.length > 0) {
           const streamLinks = [];
           
-          for (const rdLink of torrentInfo.links.slice(0, 5)) {
+          // Process all links, not just first 5
+          for (const rdLink of torrentInfo.links) {
             try {
               const unrestrictResponse = await fetch(`${REAL_DEBRID_API}/unrestrict/link`, {
                 method: 'POST',
@@ -321,11 +322,18 @@ serve(async (req) => {
               
               if (unrestrictResponse.ok) {
                 const unrestrictData: UnrestrictedLink = await unrestrictResponse.json();
-                if (unrestrictData.streamable === 1) {
+                // Include all video files (streamable or not, as some MKVs might not be flagged)
+                const isVideoFile = /\.(mp4|mkv|avi|mov|wmv|m4v|webm)$/i.test(unrestrictData.filename);
+                if (isVideoFile) {
+                  // Try to extract season/episode from filename
+                  const seMatch = unrestrictData.filename.match(/[Ss](\d{1,2})[Ee](\d{1,2})/);
+                  
                   streamLinks.push({
                     filename: unrestrictData.filename,
                     download: unrestrictData.download,
                     filesize: unrestrictData.filesize,
+                    season: seMatch ? parseInt(seMatch[1]) : null,
+                    episode: seMatch ? parseInt(seMatch[2]) : null,
                   });
                 }
               }
@@ -334,11 +342,23 @@ serve(async (req) => {
             }
           }
 
+          // Sort by season/episode if available
+          streamLinks.sort((a, b) => {
+            if (a.season !== null && b.season !== null) {
+              if (a.season !== b.season) return a.season - b.season;
+              if (a.episode !== null && b.episode !== null) {
+                return a.episode - b.episode;
+              }
+            }
+            return 0;
+          });
+
           return new Response(JSON.stringify({
             success: true,
             status: 'ready',
             torrent_id: torrentId,
             streams: streamLinks,
+            is_tv_show: streamLinks.some(s => s.season !== null),
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });

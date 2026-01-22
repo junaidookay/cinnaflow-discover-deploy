@@ -78,6 +78,7 @@ export type Database = {
           content_type: Database["public"]["Enums"]["content_type"]
           created_at: string
           description: string | null
+          episodes: Json | null
           external_watch_links: Json | null
           hero_order: number | null
           id: string
@@ -97,6 +98,7 @@ export type Database = {
           content_type: Database["public"]["Enums"]["content_type"]
           created_at?: string
           description?: string | null
+          episodes?: Json | null
           external_watch_links?: Json | null
           hero_order?: number | null
           id?: string
@@ -116,6 +118,7 @@ export type Database = {
           content_type?: Database["public"]["Enums"]["content_type"]
           created_at?: string
           description?: string | null
+          episodes?: Json | null
           external_watch_links?: Json | null
           hero_order?: number | null
           id?: string

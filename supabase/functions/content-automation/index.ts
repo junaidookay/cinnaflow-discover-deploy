@@ -175,6 +175,15 @@ serve(async (req) => {
           throw new Error('Real-Debrid not configured');
         }
 
+        // Get the content item to check if it's a TV show
+        const { data: contentItem } = await supabase
+          .from('content_items')
+          .select('content_type')
+          .eq('id', contentId)
+          .single();
+
+        const isTvShow = contentItem?.content_type === 'tv';
+
         const headers = {
           'Authorization': `Bearer ${REAL_DEBRID_API_KEY}`,
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -213,7 +222,87 @@ serve(async (req) => {
         const torrentInfo = await infoResponse.json();
 
         if (torrentInfo.status === 'downloaded' && torrentInfo.links?.length > 0) {
-          // Get streaming URL
+          // For TV shows, unrestrict all video files and save as episodes
+          if (isTvShow) {
+            const episodes = [];
+            let firstVideoUrl = null;
+            let episodeCounter = 1;
+            
+            for (const link of torrentInfo.links) {
+              try {
+                const unrestrictResponse = await fetch(`${REAL_DEBRID_API}/unrestrict/link`, {
+                  method: 'POST',
+                  headers,
+                  body: `link=${encodeURIComponent(link)}`,
+                });
+
+                if (unrestrictResponse.ok) {
+                  const streamData = await unrestrictResponse.json();
+                  const isVideoFile = /\.(mp4|mkv|avi|mov|wmv|m4v|webm)$/i.test(streamData.filename);
+                  
+                  if (isVideoFile) {
+                    // Try to extract season/episode from filename (multiple patterns)
+                    const seMatch = streamData.filename.match(/[Ss](\d{1,2})[Ee](\d{1,2})/) ||
+                                    streamData.filename.match(/Season\s*(\d{1,2}).*Episode\s*(\d{1,2})/i) ||
+                                    streamData.filename.match(/(\d{1,2})x(\d{1,2})/);
+                    
+                    let season = 1;
+                    let episode = episodeCounter;
+                    
+                    if (seMatch) {
+                      season = parseInt(seMatch[1]);
+                      episode = parseInt(seMatch[2]);
+                    } else {
+                      // Auto-increment episode number for files without pattern
+                      episodeCounter++;
+                    }
+                    
+                    episodes.push({
+                      season: season,
+                      episode: episode,
+                      title: streamData.filename.replace(/\.[^/.]+$/, ''),
+                      url: streamData.download,
+                    });
+                    
+                    if (!firstVideoUrl) {
+                      firstVideoUrl = streamData.download;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Failed to unrestrict link:', e);
+              }
+            }
+
+            // Sort episodes by season and episode number
+            episodes.sort((a, b) => {
+              if (a.season !== b.season) return a.season - b.season;
+              return a.episode - b.episode;
+            });
+
+            // Update content item with episodes and first video as main URL
+            await supabase
+              .from('content_items')
+              .update({ 
+                video_embed_url: firstVideoUrl || episodes[0]?.url,
+                episodes: episodes,
+                is_published: true,
+                section_assignments: ['recently_added'],
+              })
+              .eq('id', contentId);
+
+            return new Response(JSON.stringify({
+              success: true,
+              status: 'ready',
+              streamUrl: firstVideoUrl,
+              episodeCount: episodes.length,
+              episodes: episodes,
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // For movies, just get the first/largest video file
           const unrestrictResponse = await fetch(`${REAL_DEBRID_API}/unrestrict/link`, {
             method: 'POST',
             headers,

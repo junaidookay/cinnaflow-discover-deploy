@@ -4,16 +4,22 @@ import { supabase } from '@/integrations/supabase/client';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import VideoPlayer, { isDirectVideoUrl } from '@/components/VideoPlayer';
-import { Play, ArrowLeft, Film, Star, Calendar, Clock } from 'lucide-react';
-import { Database } from '@/integrations/supabase/types';
+import EpisodeSelector, { Episode } from '@/components/EpisodeSelector';
+import { Play, ArrowLeft, Film, Star, Calendar, Clock, Tv } from 'lucide-react';
+import { Database, Json } from '@/integrations/supabase/types';
 
-type ContentItem = Database['public']['Tables']['content_items']['Row'];
+type ContentItem = Database['public']['Tables']['content_items']['Row'] & {
+  episodes?: Json;
+};
 
 interface TMDBDetails {
   vote_average?: number;
   vote_count?: number;
   release_date?: string;
+  first_air_date?: string;
   runtime?: number;
+  number_of_seasons?: number;
+  number_of_episodes?: number;
   genres?: { id: number; name: string }[];
 }
 
@@ -23,7 +29,27 @@ const ContentDetail = () => {
   const [related, setRelated] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tmdbDetails, setTmdbDetails] = useState<TMDBDetails | null>(null);
+  const [currentEpisode, setCurrentEpisode] = useState<Episode | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
+
+  // Parse episodes from JSON
+  const parseEpisodes = (episodesJson: Json | undefined): Episode[] => {
+    if (!episodesJson || !Array.isArray(episodesJson)) return [];
+    return episodesJson
+      .filter((ep): boolean => 
+        typeof ep === 'object' && 
+        ep !== null &&
+        'season' in ep && 
+        'episode' in ep && 
+        'url' in ep
+      )
+      .map(ep => ({
+        season: (ep as Record<string, unknown>).season as number,
+        episode: (ep as Record<string, unknown>).episode as number,
+        title: (ep as Record<string, unknown>).title as string | undefined,
+        url: (ep as Record<string, unknown>).url as string,
+      }));
+  };
 
   // Extract TMDB ID from tags
   const getTmdbId = (tags: string[] | null): string | null => {
@@ -56,6 +82,14 @@ const ContentDetail = () => {
       setContent(data);
       
       if (data) {
+        // Parse episodes and set first episode as default for TV shows
+        const episodes = parseEpisodes((data as ContentItem).episodes);
+        if (episodes.length > 0) {
+          setCurrentEpisode(episodes[0]);
+        } else {
+          setCurrentEpisode(null);
+        }
+
         // Fetch TMDB details if we have a TMDB ID
         const tmdbId = getTmdbId(data.tags);
         if (tmdbId) {
@@ -88,6 +122,17 @@ const ContentDetail = () => {
 
     fetchContent();
   }, [id]);
+
+  // Get current video URL (either from episode or main video_embed_url)
+  const getCurrentVideoUrl = (): string | null => {
+    if (currentEpisode?.url) {
+      return currentEpisode.url;
+    }
+    return content?.video_embed_url || null;
+  };
+
+  // Get parsed episodes for the selector
+  const episodes = content ? parseEpisodes(content.episodes) : [];
 
   if (isLoading) {
     return (
@@ -174,11 +219,11 @@ const ContentDetail = () => {
                       )}
                     </div>
                   )}
-                  {tmdbDetails.release_date && (
+                  {(tmdbDetails.release_date || tmdbDetails.first_air_date) && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
                       <span className="text-foreground">
-                        {new Date(tmdbDetails.release_date).getFullYear()}
+                        {new Date(tmdbDetails.release_date || tmdbDetails.first_air_date || '').getFullYear()}
                       </span>
                     </div>
                   )}
@@ -187,6 +232,22 @@ const ContentDetail = () => {
                       <Clock className="w-4 h-4 text-muted-foreground" />
                       <span className="text-foreground">
                         {Math.floor(tmdbDetails.runtime / 60)}h {tmdbDetails.runtime % 60}m
+                      </span>
+                    </div>
+                  )}
+                  {tmdbDetails.number_of_seasons && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg">
+                      <Tv className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-foreground">
+                        {tmdbDetails.number_of_seasons} Season{tmdbDetails.number_of_seasons > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  )}
+                  {tmdbDetails.number_of_episodes && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-secondary rounded-lg">
+                      <Film className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-foreground">
+                        {tmdbDetails.number_of_episodes} Episodes
                       </span>
                     </div>
                   )}
@@ -219,7 +280,7 @@ const ContentDetail = () => {
               })()}
 
               {/* Watch Now Button */}
-              {content.video_embed_url && (
+              {getCurrentVideoUrl() && (
                 <button 
                   onClick={() => playerRef.current?.scrollIntoView({ behavior: 'smooth' })}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
@@ -230,19 +291,34 @@ const ContentDetail = () => {
               )}
 
               {/* Video Player Section */}
-              {content.video_embed_url ? (
+              {getCurrentVideoUrl() ? (
                 <div ref={playerRef} className="mt-8">
                   <div className="flex items-center gap-2 mb-3">
                     <Film className="w-4 h-4 text-primary" />
                     <span className="text-sm text-muted-foreground">
-                      {isDirectVideoUrl(content.video_embed_url) ? 'Direct Stream' : 'Embedded Player'}
+                      {isDirectVideoUrl(getCurrentVideoUrl()!) ? 'Direct Stream' : 'Embedded Player'}
+                      {currentEpisode && ` • S${currentEpisode.season}E${currentEpisode.episode}`}
                     </span>
                   </div>
                   <VideoPlayer 
-                    src={content.video_embed_url} 
+                    key={getCurrentVideoUrl()}
+                    src={getCurrentVideoUrl()!} 
                     poster={content.thumbnail_url || content.poster_url || undefined}
-                    title={content.title}
+                    title={currentEpisode ? `${content.title} - S${currentEpisode.season}E${currentEpisode.episode}` : content.title}
                   />
+
+                  {/* Episode Selector for TV Shows */}
+                  {content.content_type === 'tv' && episodes.length > 0 && (
+                    <EpisodeSelector
+                      episodes={episodes}
+                      currentEpisode={currentEpisode}
+                      onEpisodeSelect={(ep) => {
+                        setCurrentEpisode(ep);
+                        playerRef.current?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="mt-6"
+                    />
+                  )}
                 </div>
               ) : (
                 <div ref={playerRef} className="mt-8">

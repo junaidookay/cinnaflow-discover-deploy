@@ -268,9 +268,11 @@ const ContentDetail = () => {
               {/* Display Tags (filtered) */}
               {(() => {
                 const displayTags = getDisplayTags(content.tags);
-                return displayTags.length > 0 ? (
+                const tmdbGenreNames = new Set((tmdbDetails?.genres || []).map((g) => g.name.toLowerCase()));
+                const filteredDisplayTags = displayTags.filter((tag) => !tmdbGenreNames.has(tag.toLowerCase()));
+                return filteredDisplayTags.length > 0 ? (
                   <div className="flex flex-wrap gap-2 mb-6">
-                    {displayTags.map((tag) => (
+                    {filteredDisplayTags.map((tag) => (
                       <span key={tag} className="px-3 py-1 bg-secondary text-foreground text-sm rounded-lg">
                         {tag}
                       </span>

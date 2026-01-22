@@ -122,6 +122,88 @@ const ContentFormModal = ({ item, onClose, onSave }: ContentFormModalProps) => {
     setMagnetProgress({ status: 'adding', progress: 0, torrentId: null });
     
     try {
+      // For TV shows with existing item ID, use content-automation to properly populate episodes
+      if (formData.content_type === 'tv' && item?.id) {
+        const { data, error } = await supabase.functions.invoke('content-automation', {
+          body: {
+            action: 'resolve_single',
+            contentId: item.id,
+            magnet: magnetLink.trim(),
+          },
+        });
+
+        if (error) throw error;
+
+        if (data.error) {
+          toast.error(data.error);
+          setMagnetProgress(null);
+          setIsResolvingMagnet(false);
+          return;
+        }
+
+        if (data.status === 'ready') {
+          setFormData(prev => ({
+            ...prev,
+            video_embed_url: data.streamUrl,
+          }));
+          setMagnetLink('');
+          setMagnetProgress(null);
+          setIsResolvingMagnet(false);
+          
+          const episodeCount = data.episodeCount || 0;
+          toast.success(`Magnet resolved! ${episodeCount > 0 ? `${episodeCount} episodes added.` : 'Streaming URL added.'}`);
+          
+          // Refresh parent to show updated episodes
+          onSave();
+        } else {
+          setMagnetProgress({
+            status: data.status || 'processing',
+            progress: data.progress || 0,
+            torrentId: data.torrent_id || null,
+          });
+          
+          // Poll for completion
+          if (data.torrent_id) {
+            pollIntervalRef.current = setInterval(async () => {
+              const { data: pollData } = await supabase.functions.invoke('content-automation', {
+                body: {
+                  action: 'resolve_single',
+                  contentId: item.id,
+                  magnet: magnetLink.trim(),
+                },
+              });
+              
+              if (pollData?.status === 'ready') {
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current);
+                  pollIntervalRef.current = null;
+                }
+                setFormData(prev => ({
+                  ...prev,
+                  video_embed_url: pollData.streamUrl,
+                }));
+                setMagnetLink('');
+                setMagnetProgress(null);
+                setIsResolvingMagnet(false);
+                const epCount = pollData.episodeCount || 0;
+                toast.success(`Magnet resolved! ${epCount > 0 ? `${epCount} episodes added.` : 'Streaming URL added.'}`);
+                onSave();
+              } else if (pollData) {
+                setMagnetProgress({
+                  status: pollData.status || 'processing',
+                  progress: pollData.progress || 0,
+                  torrentId: data.torrent_id,
+                });
+              }
+            }, 3000);
+          }
+          
+          toast.info('Torrent added. Monitoring download progress...');
+        }
+        return;
+      }
+
+      // For movies or new items, use the basic real-debrid function
       const { data, error } = await supabase.functions.invoke('real-debrid', {
         body: {
           action: 'add_magnet',

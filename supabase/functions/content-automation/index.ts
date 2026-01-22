@@ -223,9 +223,10 @@ serve(async (req) => {
 
         if (torrentInfo.status === 'downloaded' && torrentInfo.links?.length > 0) {
           // For TV shows, unrestrict all video files and save as episodes
-          if (isTvShow && torrentInfo.links.length > 1) {
+          if (isTvShow) {
             const episodes = [];
             let firstVideoUrl = null;
+            let episodeCounter = 1;
             
             for (const link of torrentInfo.links) {
               try {
@@ -240,17 +241,28 @@ serve(async (req) => {
                   const isVideoFile = /\.(mp4|mkv|avi|mov|wmv|m4v|webm)$/i.test(streamData.filename);
                   
                   if (isVideoFile) {
-                    // Extract season/episode from filename
-                    const seMatch = streamData.filename.match(/[Ss](\d{1,2})[Ee](\d{1,2})/);
+                    // Try to extract season/episode from filename (multiple patterns)
+                    const seMatch = streamData.filename.match(/[Ss](\d{1,2})[Ee](\d{1,2})/) ||
+                                    streamData.filename.match(/Season\s*(\d{1,2}).*Episode\s*(\d{1,2})/i) ||
+                                    streamData.filename.match(/(\d{1,2})x(\d{1,2})/);
+                    
+                    let season = 1;
+                    let episode = episodeCounter;
                     
                     if (seMatch) {
-                      episodes.push({
-                        season: parseInt(seMatch[1]),
-                        episode: parseInt(seMatch[2]),
-                        title: streamData.filename.replace(/\.[^/.]+$/, ''),
-                        url: streamData.download,
-                      });
+                      season = parseInt(seMatch[1]);
+                      episode = parseInt(seMatch[2]);
+                    } else {
+                      // Auto-increment episode number for files without pattern
+                      episodeCounter++;
                     }
+                    
+                    episodes.push({
+                      season: season,
+                      episode: episode,
+                      title: streamData.filename.replace(/\.[^/.]+$/, ''),
+                      url: streamData.download,
+                    });
                     
                     if (!firstVideoUrl) {
                       firstVideoUrl = streamData.download;

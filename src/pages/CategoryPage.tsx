@@ -12,7 +12,8 @@ type ContentItem = Tables<"content_items">;
 
 const categoryConfig: Record<string, { title: string; type: "movie" | "tv" | "sports" | "clip" }> = {
   "/movies": { title: "Movies", type: "movie" },
-  "/tv": { title: "TV Shows", type: "tv" },
+  "/tv-shows": { title: "TV Shows", type: "tv" },
+  "/tv": { title: "Live TV", type: "tv" },
   "/sports": { title: "Sports", type: "sports" },
   "/clips": { title: "Clips", type: "clip" },
 };

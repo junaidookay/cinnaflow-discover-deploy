@@ -51,6 +51,7 @@ const App = () => (
             <Route path="/submit/artist" element={<SubmitArtist />} />
             <Route path="/submit/creator" element={<SubmitCreator />} />
             <Route path="/movies" element={<CategoryPage />} />
+            <Route path="/tv-shows" element={<CategoryPage />} />
             <Route path="/tv" element={<CategoryPage />} />
             <Route path="/sports" element={<CategoryPage />} />
             <Route path="/clips" element={<CategoryPage />} />
